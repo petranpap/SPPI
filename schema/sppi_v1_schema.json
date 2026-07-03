@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/petranpap/SPPI/schema/sppi_v1_schema.json",
+  "title": "SPPI v1.0 — Set-Piece Phase Instance",
+  "description": "Provider-independent JSON schema for football corner kick attacking phases.",
+  "type": "object",
+  "required": ["metadata", "context", "execution", "events", "outcome"],
+  "properties": {
+
+    "metadata": {
+      "type": "object",
+      "required": ["sppi_id","match_id","source","timestamp","competition","season","home_team","away_team","attacking_team","defending_team"],
+      "properties": {
+        "sppi_id":        { "type": "string", "minLength": 1 },
+        "match_id":       { "type": "string" },
+        "source":         { "type": "string", "enum": ["statsbomb","wyscout","manual"] },
+        "timestamp":      { "type": "integer", "minimum": 0, "maximum": 2147483647, "description": "Unix timestamp of match kick-off (UTC, seconds). Max 2^31-1 (Y2038); use 64-bit storage for post-2038 fixtures." },
+        "competition":    { "type": "string" },
+        "season":         { "type": "string" },
+        "home_team":      { "type": "string" },
+        "away_team":      { "type": "string" },
+        "attacking_team": { "type": "string" },
+        "defending_team": { "type": "string" }
+      }
+    },
+
+    "context": {
+      "type": "object",
+      "required": ["minute","period","score_home","score_away","set_piece_type","corner_side"],
+      "properties": {
+        "minute":         { "type": "integer", "minimum": 0, "maximum": 130 },
+        "second":         { "type": "integer", "minimum": 0, "maximum": 59 },
+        "period":         { "type": "string", "enum": ["1","2","ET1","ET2"] },
+        "score_home":     { "type": "integer", "minimum": 0 },
+        "score_away":     { "type": "integer", "minimum": 0 },
+        "set_piece_type": { "type": "string", "enum": ["corner","free_kick"] },
+        "corner_side":    { "type": "string", "enum": ["left","right"], "description": "Side of the pitch from which the corner is taken. Used to determine near_post/far_post zone mapping." }
+      }
+    },
+
+    "execution": {
+      "type": "object",
+      "required": ["executors","foot","delivery_type","target_zone"],
+      "properties": {
+        "executors": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["jersey_number","role"],
+            "properties": {
+              "jersey_number": { "type": "integer", "minimum": 1, "maximum": 99 },
+              "player_id":     { "type": ["string","null"] },
+              "role":          { "type": "string", "enum": ["primary","secondary"] }
+            }
+          }
+        },
+        "signal": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["signaler","gesture","target"],
+              "properties": {
+                "signaler": {
+                  "type": "object",
+                  "required": ["location"],
+                  "properties": {
+                    "jersey_number": { "type": ["integer","null"], "minimum": 1, "maximum": 99 },
+                    "player_id":     { "type": ["string","null"] },
+                    "location":      { "type": "string", "enum": ["corner_flag","near_post","far_post","center","penalty_spot","outside_area"] }
+                  }
+                },
+                "gesture": { "type": "string", "enum": ["one_arm_up","two_arms_up","point_near","point_far","wave","open_hand","none"] },
+                "target":  { "type": "string", "enum": ["near_post","far_post","center","penalty_spot","outside_area"] }
+              }
+            }
+          ],
+          "description": "Optional. Pre-execution signal by signaler (who may differ from the executor). Absent from all commercial schemas — manual annotation only."
+        },
+        "foot":          { "type": "string", "enum": ["left","right"] },
+        "delivery_type": { "type": "string", "enum": ["inswinger","outswinger","flat","short"] },
+        "target_zone":   { "type": "string", "enum": ["near_post","far_post","center","penalty_spot","outside_area"], "description": "Observed landing zone of the delivery (player position of first recipient, not ball flight destination)." }
+      }
+    },
+
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered array of ball-contact events. sequence_index must be strictly monotonically increasing from 1.",
+      "items": {
+        "type": "object",
+        "required": ["sequence_index","player"],
+        "properties": {
+          "sequence_index": { "type": "integer", "minimum": 1 },
+          "player": {
+            "type": "object",
+            "required": ["team","zone_before","zone_after","action_type","outcome"],
+            "properties": {
+              "jersey_number":  { "type": ["integer","null"], "minimum": 1, "maximum": 99 },
+              "player_id":      { "type": ["string","null"] },
+              "team":           { "type": "string", "enum": ["attacking","defending"] },
+              "zone_before":    { "type": "string", "enum": ["near_post","far_post","center","penalty_spot","outside_area"], "description": "Player position zone immediately before ball contact." },
+              "zone_after":     { "type": "string", "enum": ["near_post","far_post","center","penalty_spot","outside_area"], "description": "Player position zone immediately after ball contact." },
+              "ball_zone_after":{ "type": ["string","null"], "enum": ["near_post","far_post","center","penalty_spot","outside_area",null], "description": "Zone where the ball lands after this action (ball position, not player). Used to evaluate termination predicates." },
+              "action_type":    { "type": "string", "enum": ["header","shot","goal","pass","clearance","block","touch"] },
+              "outcome":        { "type": "string", "enum": ["success","fail"] }
+            }
+          }
+        }
+      }
+    },
+
+    "outcome": {
+      "type": "object",
+      "required": ["termination_type","termination_zone","final_action","final_player"],
+      "properties": {
+        "termination_type": {
+          "type": "string",
+          "enum": ["goal","out_of_play","cleared"],
+          "description": "Analyst/converter-assigned label corresponding to the satisfied formal condition: goal (T1), out_of_play (T2), cleared (T3)."
+        },
+        "termination_zone": {
+          "type": "string",
+          "enum": ["near_post","far_post","center","penalty_spot","outside_area"],
+          "description": "Last on-pitch zone before termination. For T2 (out_of_play), the zone from which the ball exited the field."
+        },
+        "final_action":    { "type": "string", "enum": ["header","shot","goal","pass","clearance","block","touch"] },
+        "final_player": {
+          "type": "object",
+          "required": ["team"],
+          "properties": {
+            "jersey_number": { "type": ["integer","null"] },
+            "player_id":     { "type": ["string","null"] },
+            "team":          { "type": "string", "enum": ["attacking","defending"] }
+          }
+        },
+        "spawned_instance": { "type": ["string","null"], "description": "SPPI ID of derived phase (e.g. short corner follow-up). See Spawns_sc relation." },
+        "parent_instance":  { "type": ["string","null"], "description": "SPPI ID of parent phase if this is a derived instance." }
+      }
+    }
+
+  }
+}

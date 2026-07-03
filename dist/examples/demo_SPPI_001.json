@@ -1,0 +1,105 @@
+{
+  "metadata": {
+    "sppi_id": "SPPI_001",
+    "match_id": "UCL_2024_BAR_RMA_001",
+    "source": "manual",
+    "timestamp": 1714500000,
+    "competition": "UEFA Champions League",
+    "season": "2023/24",
+    "home_team": "Barcelona",
+    "away_team": "Real Madrid",
+    "attacking_team": "Barcelona",
+    "defending_team": "Real Madrid"
+  },
+  "context": {
+    "minute": 67,
+    "period": "2",
+    "score_home": 0,
+    "score_away": 0,
+    "set_piece_type": "corner",
+    "corner_side": "right"
+  },
+  "execution": {
+    "executors": [
+      { "jersey_number": 19, "player_id": null, "role": "primary" }
+    ],
+    "signal": {
+      "signaler": {
+        "jersey_number": 9,
+        "player_id": null,
+        "location": "near_post"
+      },
+      "gesture": "one_arm_up",
+      "target": "near_post"
+    },
+    "foot": "right",
+    "delivery_type": "inswinger",
+    "target_zone": "near_post"
+  },
+  "events": [
+    {
+      "sequence_index": 1,
+      "player": {
+        "jersey_number": 19,
+        "player_id": null,
+        "team": "attacking",
+        "zone_before": "outside_area",
+        "zone_after": "outside_area",
+        "ball_zone_after": "near_post",
+        "action_type": "pass",
+        "outcome": "success"
+      }
+    },
+    {
+      "sequence_index": 2,
+      "player": {
+        "jersey_number": 9,
+        "player_id": null,
+        "team": "attacking",
+        "zone_before": "near_post",
+        "zone_after": "center",
+        "ball_zone_after": "center",
+        "action_type": "header",
+        "outcome": "fail"
+      }
+    },
+    {
+      "sequence_index": 3,
+      "player": {
+        "jersey_number": 3,
+        "player_id": null,
+        "team": "defending",
+        "zone_before": "center",
+        "zone_after": "outside_area",
+        "ball_zone_after": "outside_area",
+        "action_type": "clearance",
+        "outcome": "fail"
+      }
+    },
+    {
+      "sequence_index": 4,
+      "player": {
+        "jersey_number": 11,
+        "player_id": null,
+        "team": "attacking",
+        "zone_before": "outside_area",
+        "zone_after": "outside_area",
+        "ball_zone_after": null,
+        "action_type": "shot",
+        "outcome": "fail"
+      }
+    }
+  ],
+  "outcome": {
+    "termination_type": "out_of_play",
+    "termination_zone": "outside_area",
+    "final_action": "shot",
+    "final_player": {
+      "jersey_number": 11,
+      "player_id": null,
+      "team": "attacking"
+    },
+    "spawned_instance": null,
+    "parent_instance": null
+  }
+}
