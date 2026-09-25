@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import ZoneSelector from './ZoneSelector'
+import { useI18n } from '../i18n'
 
 const ACTION_TYPES = [
-  { id: 'header',    label: 'Header',    icon: '🦅' },
-  { id: 'shot',      label: 'Shot',      icon: '⚡' },
-  { id: 'goal',      label: 'Goal',      icon: '⚽' },
-  { id: 'pass',      label: 'Pass',      icon: '➡' },
-  { id: 'clearance', label: 'Clearance', icon: '↩' },
-  { id: 'block',     label: 'Block',     icon: '🛡' },
-  { id: 'touch',     label: 'Touch',     icon: '✋' },
+  { id: 'header',    icon: '🦅' },
+  { id: 'shot',      icon: '⚡' },
+  { id: 'goal',      icon: '⚽' },
+  { id: 'pass',      icon: '➡' },
+  { id: 'clearance', icon: '↩' },
+  { id: 'block',     icon: '🛡' },
+  { id: 'touch',     icon: '✋' },
 ]
 
 const BLANK_EVENT = {
@@ -24,22 +25,8 @@ function actionIcon(id) {
   return ACTION_TYPES.find(a => a.id === id)?.icon ?? ''
 }
 
-function actionLabel(id) {
-  return ACTION_TYPES.find(a => a.id === id)?.label ?? id
-}
-
-function zoneName(id) {
-  const map = {
-    near_post:    'Near Post',
-    far_post:     'Far Post',
-    penalty_spot: 'Pen. Spot',
-    center:       'Center',
-    outside_area: 'Outside',
-  }
-  return map[id] ?? id
-}
-
 export default function EventsSection({ events, onChange }) {
+  const { t } = useI18n()
   const [showForm, setShowForm] = useState(events.length === 0)
   const [form, setForm] = useState(BLANK_EVENT)
   const [editIdx, setEditIdx] = useState(null)
@@ -95,12 +82,12 @@ export default function EventsSection({ events, onChange }) {
 
   return (
     <div>
-      <p className="section-title">Event Sequence</p>
+      <p className="section-title">{t('events.title')}</p>
 
       {events.length === 0 && !showForm && (
         <div className="empty-state">
           <span className="empty-state-icon">📋</span>
-          No events recorded yet. Add the first ball contact below.
+          {t('events.empty')}
         </div>
       )}
 
@@ -112,16 +99,16 @@ export default function EventsSection({ events, onChange }) {
 
               <div className="event-info">
                 <strong>#{ev.jersey_number || '?'}</strong>{' '}
-                <span className={`team-badge ${ev.team}`}>{ev.team}</span>{' '}
-                {actionIcon(ev.action_type)} {actionLabel(ev.action_type)}
+                <span className={`team-badge ${ev.team}`}>{t(`team.${ev.team}`).toLowerCase()}</span>{' '}
+                {actionIcon(ev.action_type)} {t(`action.${ev.action_type}`)}
                 <br />
                 <span style={{ fontSize: '11px' }}>
-                  {zoneName(ev.zone_before)}
+                  {t(`zone.compact.${ev.zone_before}`)}
                   <span className="event-arrow"> → </span>
-                  {zoneName(ev.zone_after)}
+                  {t(`zone.compact.${ev.zone_after}`)}
                   {'  ·  '}
                   <span className={`outcome-dot ${ev.outcome}`} />
-                  {ev.outcome}
+                  {t(`events.outcomeShort.${ev.outcome}`)}
                 </span>
               </div>
 
@@ -131,14 +118,14 @@ export default function EventsSection({ events, onChange }) {
                   style={{ fontSize: '12px', opacity: i === 0 ? 0.2 : 1 }}
                   onClick={() => moveUp(i)}
                   disabled={i === 0}
-                  title="Move up"
+                  title={t('events.moveUp')}
                 >▲</button>
                 <button
                   className="icon-btn"
                   style={{ fontSize: '12px', opacity: i === events.length - 1 ? 0.2 : 1 }}
                   onClick={() => moveDown(i)}
                   disabled={i === events.length - 1}
-                  title="Move down"
+                  title={t('events.moveDown')}
                 >▼</button>
               </div>
 
@@ -146,9 +133,9 @@ export default function EventsSection({ events, onChange }) {
                 className="icon-btn"
                 style={{ fontSize: '14px', color: 'var(--text-muted)' }}
                 onClick={() => openEdit(i)}
-                title="Edit"
+                title={t('events.edit')}
               >✎</button>
-              <button className="icon-btn" onClick={() => removeEvent(i)} title="Remove">×</button>
+              <button className="icon-btn" onClick={() => removeEvent(i)} title={t('events.remove')}>×</button>
             </div>
           ))}
         </div>
@@ -156,17 +143,17 @@ export default function EventsSection({ events, onChange }) {
 
       {!showForm ? (
         <button className="dashed-btn" style={{ marginBottom: '0' }} onClick={openAdd}>
-          + Add Event
+          {t('events.addEvent')}
         </button>
       ) : (
         <div className="add-event-form">
           <p className="section-title" style={{ marginBottom: '12px' }}>
-            {editIdx !== null ? `Edit Event ${editIdx + 1}` : 'New Event'}
+            {editIdx !== null ? t('events.editTitle', { n: editIdx + 1 }) : t('events.newTitle')}
           </p>
 
           <div className="field-row">
             <div className="field-group">
-              <label className="field-label">Jersey #</label>
+              <label className="field-label">{t('events.jersey')}</label>
               <input
                 className="field-input"
                 type="number"
@@ -178,16 +165,16 @@ export default function EventsSection({ events, onChange }) {
               />
             </div>
             <div className="field-group">
-              <label className="field-label">Team</label>
+              <label className="field-label">{t('events.team')}</label>
               <div className="btn-group" style={{ flexDirection: 'column', gap: '5px' }}>
-                {['attacking', 'defending'].map(t => (
+                {['attacking', 'defending'].map(team => (
                   <button
-                    key={t}
-                    className={`btn-option ${form.team === t ? 'selected' : ''}`}
-                    onClick={() => setField('team', t)}
+                    key={team}
+                    className={`btn-option ${form.team === team ? 'selected' : ''}`}
+                    onClick={() => setField('team', team)}
                     style={{ fontSize: '11px' }}
                   >
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                    {t(`team.${team}`)}
                   </button>
                 ))}
               </div>
@@ -195,7 +182,7 @@ export default function EventsSection({ events, onChange }) {
           </div>
 
           <div className="field-group">
-            <label className="field-label">Action Type</label>
+            <label className="field-label">{t('events.actionType')}</label>
             <div className="action-grid">
               {ACTION_TYPES.map(a => (
                 <button
@@ -204,50 +191,50 @@ export default function EventsSection({ events, onChange }) {
                   onClick={() => setField('action_type', a.id)}
                 >
                   <span className="action-icon">{a.icon}</span>
-                  {a.label}
+                  {t(`action.${a.id}`)}
                 </button>
               ))}
             </div>
           </div>
 
           <ZoneSelector
-            label="Zone Before"
+            label={t('events.zoneBefore')}
             value={form.zone_before}
             onChange={v => setField('zone_before', v)}
           />
 
           <ZoneSelector
-            label="Zone After"
+            label={t('events.zoneAfter')}
             value={form.zone_after}
             onChange={v => setField('zone_after', v)}
           />
 
           <div className="field-group">
-            <label className="field-label">Outcome</label>
+            <label className="field-label">{t('events.outcome')}</label>
             <div className="btn-group">
               <button
                 className={`btn-option ${form.outcome === 'success' ? 'selected' : ''}`}
                 onClick={() => setField('outcome', 'success')}
                 style={form.outcome === 'success' ? { background: '#dcfce7', borderColor: '#16a34a', color: '#15803d' } : {}}
               >
-                ✓ Success
+                {t('events.success')}
               </button>
               <button
                 className={`btn-option ${form.outcome === 'fail' ? 'selected' : ''}`}
                 onClick={() => setField('outcome', 'fail')}
                 style={form.outcome === 'fail' ? { background: '#fee2e2', borderColor: '#dc2626', color: '#991b1b' } : {}}
               >
-                ✗ Fail
+                {t('events.fail')}
               </button>
             </div>
           </div>
 
           <div className="btn-row">
             <button className="confirm-btn" style={{ flex: 1 }} onClick={confirmEvent}>
-              {editIdx !== null ? 'Update Event' : 'Add Event'}
+              {editIdx !== null ? t('events.update') : t('events.add')}
             </button>
             <button className="cancel-btn" onClick={() => { setShowForm(false); setEditIdx(null) }}>
-              Cancel
+              {t('events.cancel')}
             </button>
           </div>
         </div>

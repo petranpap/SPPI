@@ -9,6 +9,7 @@ import { createAnnotationRepository } from './repositories/annotationRepository.
 import { createAuthRouter } from './routes/auth.js'
 import { createAnnotationsRouter } from './routes/annotations.js'
 import { createInsightsRouter } from './routes/insights.js'
+import { sendError } from './httpError.js'
 
 const DIST_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist')
 
@@ -31,7 +32,7 @@ export function createApp({ db, config }) {
   app.use('/api/auth', createAuthRouter({ userRepository, sessions, registrationCode: config.registrationCode }))
   app.use('/api/annotations', sessions.requireAuth, createAnnotationsRouter({ annotationRepository }))
   app.use('/api', sessions.requireAuth, createInsightsRouter({ annotationRepository }))
-  app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }))
+  app.use('/api', (req, res) => sendError(res, 404, 'not_found', 'Not found'))
 
   if (fs.existsSync(DIST_DIR)) {
     app.use(express.static(DIST_DIR))
@@ -43,10 +44,10 @@ export function createApp({ db, config }) {
   }
 
   app.use((error, req, res, next) => {
-    if (error.type === 'entity.parse.failed') return res.status(400).json({ error: 'Malformed JSON' })
-    if (error.type === 'entity.too.large')    return res.status(413).json({ error: 'Payload too large' })
+    if (error.type === 'entity.parse.failed') return sendError(res, 400, 'malformed_json', 'Malformed JSON')
+    if (error.type === 'entity.too.large')    return sendError(res, 413, 'payload_too_large', 'Payload too large')
     console.error(error)
-    res.status(500).json({ error: 'Internal server error' })
+    sendError(res, 500, 'internal_error', 'Internal server error')
   })
 
   return app

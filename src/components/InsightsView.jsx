@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { DELIVERY_LABELS, ZONE_LABELS, signalLabel, zonePhrase } from '../labels'
+import { useI18n } from '../i18n'
+import { useLabels } from '../i18n/labels'
 import BarChart from './BarChart'
 
-const MODES = [
-  { id: 'team',  label: 'Team' },
-  { id: 'coach', label: 'Coach' },
-]
+const MODES = ['team', 'coach']
 
 const MAX_COMBO_ROWS = 8
 
@@ -14,28 +12,13 @@ function sortedByCount(items) {
   return [...items].sort((a, b) => b.count - a.count)
 }
 
-// "Most frequent in your records: Far post — 6 of 10"; names every category on a tie.
-function mostFrequentCaption(rows, total) {
-  const top = rows[0].count
-  if (top === 0) return null
-  const leaders = rows.filter(row => row.count === top).map(row => row.label)
-  return `Most frequent in your records: ${leaders.join(' and ')} — ${top} of ${total}${leaders.length > 1 ? ' each' : ''}`
-}
-
-function frequencyRows(items, labels, total, noun) {
-  return sortedByCount(items).map(item => ({
-    label:    labels[item.key],
-    count:    item.count,
-    sentence: `${item.count} of your ${total} recorded corners: ${noun} ${labels[item.key]}`,
-  }))
-}
-
 export default function InsightsView() {
+  const { t, errorMessage } = useI18n()
   const [by,       setBy]       = useState('team')
   const [groups,   setGroups]   = useState(null)
   const [selected, setSelected] = useState(null)
   const [insights, setInsights] = useState(null)
-  const [error,    setError]    = useState('')
+  const [error,    setError]    = useState(null)
 
   // Reset in the same update as the click, so no frame renders the previous mode's or group's data.
   const changeMode = mode => {
@@ -43,7 +26,7 @@ export default function InsightsView() {
     setGroups(null)
     setSelected(null)
     setInsights(null)
-    setError('')
+    setError(null)
   }
 
   const selectGroup = name => {
@@ -59,7 +42,7 @@ export default function InsightsView() {
         setGroups(groups)
         setSelected(groups[0]?.name ?? null)
       })
-      .catch(err => !stale && setError(err.message))
+      .catch(err => !stale && setError(err))
     return () => { stale = true }
   }, [by])
 
@@ -68,41 +51,37 @@ export default function InsightsView() {
     let stale = false
     api.insights(by, selected)
       .then(result => !stale && setInsights(result))
-      .catch(err => !stale && setError(err.message))
+      .catch(err => !stale && setError(err))
     return () => { stale = true }
   }, [by, selected])
 
   return (
     <div className="insights-body">
       <div className="insights-toolbar">
-        <span className="field-label insights-toolbar-label">Group by</span>
+        <span className="field-label insights-toolbar-label">{t('insights.groupBy')}</span>
         <div className="btn-group">
           {MODES.map(mode => (
             <button
-              key={mode.id}
-              className={`btn-option ${by === mode.id ? 'selected' : ''}`}
-              onClick={() => changeMode(mode.id)}
+              key={mode}
+              className={`btn-option ${by === mode ? 'selected' : ''}`}
+              onClick={() => changeMode(mode)}
             >
-              {mode.label}
+              {t(`insights.modes.${mode}`)}
             </button>
           ))}
         </div>
-        <span className="insights-scope">Only corners you annotated are counted.</span>
+        <span className="insights-scope">{t('insights.scope')}</span>
       </div>
 
-      {error && <p className="insights-message insights-message--error" role="alert">{error}</p>}
+      {error && <p className="insights-message insights-message--error" role="alert">{errorMessage(error)}</p>}
 
       {groups && groups.length === 0 && (
-        <p className="insights-message">
-          {by === 'team'
-            ? 'No annotations yet. Save your first corner in Record and it will appear here.'
-            : 'None of your annotations name an attacking coach yet. Add one in the Metadata step to group by coach.'}
-        </p>
+        <p className="insights-message">{t(by === 'team' ? 'insights.emptyTeam' : 'insights.emptyCoach')}</p>
       )}
 
       {groups && groups.length > 0 && (
         <div className="insights-layout">
-          <ul className="group-list" aria-label={`Your ${by === 'team' ? 'teams' : 'coaches'}`}>
+          <ul className="group-list" aria-label={t(`insights.groupsLabel.${by}`)}>
             {groups.map(group => (
               <li key={group.name}>
                 <button
@@ -110,9 +89,7 @@ export default function InsightsView() {
                   onClick={() => selectGroup(group.name)}
                 >
                   <span className="group-name">{group.name}</span>
-                  <span className="group-count">
-                    {group.total} corner{group.total === 1 ? '' : 's'}
-                  </span>
+                  <span className="group-count">{t('insights.cornerCount', { n: group.total })}</span>
                 </button>
               </li>
             ))}
@@ -128,75 +105,87 @@ export default function InsightsView() {
 }
 
 function GroupInsights({ by, insights }) {
+  const { t } = useI18n()
+  const labels = useLabels()
   const { name, total, threshold, unlocked, remaining } = insights
 
   if (!unlocked) {
     return (
       <div className="locked-card">
-        <p className="locked-title">
-          {remaining} more annotation{remaining === 1 ? '' : 's'} needed to unlock insights
-        </p>
+        <p className="locked-title">{t('insights.lockedTitle', { n: remaining })}</p>
         <div
           className="locked-progress"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={threshold}
           aria-valuenow={total}
-          aria-label={`${total} of ${threshold} annotations`}
+          aria-label={t('insights.progressLabel', { total, threshold })}
         >
           <span style={{ width: `${(total / threshold) * 100}%` }} />
         </div>
-        <p className="locked-detail">
-          {total} of {threshold} annotated {by === 'team' ? `${name} corners` : `corners by ${name}'s teams`} so far.
-        </p>
+        <p className="locked-detail">{t(`insights.lockedDetail.${by}`, { total, threshold, name })}</p>
       </div>
     )
   }
 
-  const subject = by === 'team' ? `${name} corners` : `corners of ${name}'s teams`
+  const subject = t(`insights.comboSentence.subject.${by}`, { name })
 
   const comboRows = insights.signalToDelivery.slice(0, MAX_COMBO_ROWS).map(combo => {
-    const signal = signalLabel(combo.gesture, combo.side)
+    const signal = labels.signal(combo.gesture, combo.side)
     const clause = combo.gesture === 'no_signal'
-      ? 'there was no signal'
-      : `the signal was “${signal.toLowerCase()}”`
+      ? t('insights.comboSentence.clauseNone')
+      : t('insights.comboSentence.clauseSignal', { signal: signal.toLowerCase() })
     return {
-      label:    `${signal} → ${ZONE_LABELS[combo.target_zone]}`,
+      label:    `${signal} → ${labels.zone(combo.target_zone)}`,
       count:    combo.count,
-      sentence: `In ${combo.count} of your ${total} recorded ${subject}, ${clause} and the delivery ${zonePhrase(combo.target_zone)}.`,
+      sentence: t('insights.comboSentence.sentence', {
+        count: combo.count, total, subject, clause, phrase: labels.zonePhrase(combo.target_zone),
+      }),
     }
   })
   const hiddenCombos = insights.signalToDelivery.length - comboRows.length
-  const zoneRows     = frequencyRows(insights.targetZone,   ZONE_LABELS,     total, 'delivery target was')
-  const deliveryRows = frequencyRows(insights.deliveryType, DELIVERY_LABELS, total, 'delivery type was')
+
+  const frequencyRows = (items, label, sentenceKey) => sortedByCount(items).map(item => ({
+    label:    label(item.key),
+    count:    item.count,
+    sentence: t(sentenceKey, { count: item.count, total, label: label(item.key) }),
+  }))
+  const zoneRows     = frequencyRows(insights.targetZone,   labels.zone,     'insights.rowSentence.zone')
+  const deliveryRows = frequencyRows(insights.deliveryType, labels.delivery, 'insights.rowSentence.delivery')
+
+  // "Most frequent in your records: Far post — 6 of 10"; names every category on a tie.
+  const mostFrequent = rows => {
+    const top = rows[0].count
+    if (top === 0) return null
+    const leaders = rows.filter(row => row.count === top).map(row => row.label)
+    return t('insights.mostFrequent', { leaders: leaders.join(t('insights.and')), top, total, tie: leaders.length > 1 })
+  }
 
   return (
     <>
-      <h2 className="insights-heading">Your recorded {subject}</h2>
-      <p className="insights-sub">
-        {total} corners annotated. These are plain counts of what you recorded — not predictions.
-      </p>
+      <h2 className="insights-heading">{t(`insights.heading.${by}`, { name })}</h2>
+      <p className="insights-sub">{t('insights.sub', { total })}</p>
 
       <BarChart
-        title="Signal → delivery target"
-        caption={comboRows[0].sentence + (hiddenCombos > 0 ? ` (${hiddenCombos} rarer combination${hiddenCombos === 1 ? '' : 's'} not shown)` : '')}
+        title={t('insights.charts.signalTitle')}
+        caption={comboRows[0].sentence + (hiddenCombos > 0 ? t('insights.hiddenCombos', { n: hiddenCombos }) : '')}
         rows={comboRows}
         total={total}
-        countHeader="Signal → target"
+        countHeader={t('insights.charts.signalColumn')}
       />
       <BarChart
-        title="Delivery type"
-        caption={mostFrequentCaption(deliveryRows, total)}
+        title={t('insights.charts.deliveryTitle')}
+        caption={mostFrequent(deliveryRows)}
         rows={deliveryRows}
         total={total}
-        countHeader="Delivery type"
+        countHeader={t('insights.charts.deliveryColumn')}
       />
       <BarChart
-        title="Delivery target zone"
-        caption={mostFrequentCaption(zoneRows, total)}
+        title={t('insights.charts.zoneTitle')}
+        caption={mostFrequent(zoneRows)}
         rows={zoneRows}
         total={total}
-        countHeader="Target zone"
+        countHeader={t('insights.charts.zoneColumn')}
       />
     </>
   )

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { DuplicateAnnotationError } from '../repositories/annotationRepository.js'
 import { cleanName, normalizeName } from '../nameKey.js'
 import { validateSppi } from '../validation.js'
+import { sendError } from '../httpError.js'
 
 const DEFAULT_PAGE_SIZE = 100
 const MAX_PAGE_SIZE     = 500
@@ -18,7 +19,7 @@ export function createAnnotationsRouter({ annotationRepository }) {
   router.post('/', async (req, res, next) => {
     try {
       const { errors, sppi } = validateSppi(req.body)
-      if (errors) return res.status(400).json({ error: 'Invalid SPPI instance', details: errors })
+      if (errors) return sendError(res, 400, 'invalid_sppi', 'Invalid SPPI instance', { details: errors })
 
       const { metadata } = sppi
       const attackingTeam  = cleanName(metadata.attacking_team)
@@ -35,7 +36,7 @@ export function createAnnotationsRouter({ annotationRepository }) {
       res.status(201).json({ id })
     } catch (error) {
       if (error instanceof DuplicateAnnotationError) {
-        return res.status(409).json({ error: 'You already saved an instance with this SPPI ID' })
+        return sendError(res, 409, 'duplicate_sppi_id', 'You already saved an instance with this SPPI ID')
       }
       next(error)
     }
@@ -55,7 +56,7 @@ export function createAnnotationsRouter({ annotationRepository }) {
       const id = Number(req.params.id)
       // Someone else's annotation and a nonexistent one are indistinguishable: both 404.
       const annotation = Number.isInteger(id) ? await annotationRepository.findForUser(req.user.id, id) : null
-      if (!annotation) return res.status(404).json({ error: 'Not found' })
+      if (!annotation) return sendError(res, 404, 'not_found', 'Not found')
       res.json({ annotation })
     } catch (error) {
       next(error)

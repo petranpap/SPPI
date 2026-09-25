@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { useI18n } from './i18n'
+import LanguageSwitch from './components/LanguageSwitch'
 import MetadataSection  from './components/MetadataSection'
 import ContextSection   from './components/ContextSection'
 import ExecutionSection from './components/ExecutionSection'
@@ -55,12 +57,14 @@ const INIT_OUTCOME = {
 }
 
 const SECTIONS = [
-  { id: 'metadata',  label: 'Metadata' },
-  { id: 'context',   label: 'Context' },
-  { id: 'execution', label: 'Execution' },
-  { id: 'events',    label: 'Events' },
-  { id: 'outcome',   label: 'Outcome' },
+  { id: 'metadata' },
+  { id: 'context' },
+  { id: 'execution' },
+  { id: 'events' },
+  { id: 'outcome' },
 ]
+
+const VIEWS = ['record', 'insights']
 
 // ── JSON builder ───────────────────────────────────────────────────────────────
 function buildSppi(meta, ctx, exec, events, outcome) {
@@ -148,20 +152,21 @@ function buildSppi(meta, ctx, exec, events, outcome) {
 }
 
 // ── Validation ─────────────────────────────────────────────────────────────────
+// Returns the app.missing.* keys of the required fields that are still empty.
 function getEmptyFields(meta, ctx, exec, events) {
-  const errors = []
-  if (!meta.sppi_id.trim())                    errors.push('SPPI ID')
-  if (!meta.match_id.trim())                   errors.push('Match ID')
-  if (!meta.competition.trim())                errors.push('Competition')
-  if (!meta.season.trim())                     errors.push('Season')
-  if (!meta.home_team.trim())                  errors.push('Home Team')
-  if (!meta.away_team.trim())                  errors.push('Away Team')
-  if (!meta.attacking_team.trim())             errors.push('Attacking Team')
-  if (!meta.defending_team.trim())             errors.push('Defending Team')
-  if (!String(ctx.minute).trim())              errors.push('Minute')
-  if (!exec.executors[0]?.jersey_number)       errors.push('Primary Executor Jersey #')
-  if (events.length === 0)                     errors.push('At least 1 event required')
-  return errors
+  const missing = []
+  if (!meta.sppi_id.trim())                    missing.push('sppiId')
+  if (!meta.match_id.trim())                   missing.push('matchId')
+  if (!meta.competition.trim())                missing.push('competition')
+  if (!meta.season.trim())                     missing.push('season')
+  if (!meta.home_team.trim())                  missing.push('homeTeam')
+  if (!meta.away_team.trim())                  missing.push('awayTeam')
+  if (!meta.attacking_team.trim())             missing.push('attackingTeam')
+  if (!meta.defending_team.trim())             missing.push('defendingTeam')
+  if (!String(ctx.minute).trim())              missing.push('minute')
+  if (!exec.executors[0]?.jersey_number)       missing.push('executorJersey')
+  if (events.length === 0)                     missing.push('events')
+  return missing
 }
 
 function downloadJson(json) {
@@ -178,6 +183,7 @@ function downloadJson(json) {
 
 // ── App ────────────────────────────────────────────────────────────────────────
 export default function App({ user, onLogout }) {
+  const { t, errorMessage } = useI18n()
   const [view,        setView]        = useState('record')
   const [active,      setActive]      = useState('metadata')
   const [meta,        setMeta]        = useState(INIT_META)
@@ -220,12 +226,12 @@ export default function App({ user, onLogout }) {
     } catch (err) {
       // Keep the form intact so nothing the annotator entered is lost.
       if (err.status === 401) return onLogout()
-      setSaveError({ message: err.message, details: err.details })
+      setSaveError(err)
       setSaving(false)
       return
     }
     setSaving(false)
-    setSavedNotice(`Saved ${json.metadata.sppi_id}`)
+    setSavedNotice(json.metadata.sppi_id)
     setTimeout(() => setSavedNotice(''), 4000)
     setMeta(INIT_META)
     setCtx(INIT_CTX)
@@ -267,7 +273,7 @@ export default function App({ user, onLogout }) {
         <div className="step-circle">
           {isDone ? '✓' : i + 1}
         </div>
-        <span className="step-label">{s.label}</span>
+        <span className="step-label">{t(`app.sections.${s.id}`)}</span>
         {s.id === 'events' && events.length > 0 && (
           <span className="step-event-badge">{events.length}</span>
         )}
@@ -282,29 +288,27 @@ export default function App({ user, onLogout }) {
       <header className="app-header">
         <div className="header-brand">
           <span className="brand-pill">SPPI</span>
-          <span className="brand-title">Corner Kick Recorder</span>
+          <span className="brand-title">{t('site.name')}</span>
         </div>
 
-        <nav className="header-nav" aria-label="Views">
-          {[{ id: 'record', label: 'Record' }, { id: 'insights', label: 'Insights' }].map(v => (
+        <nav className="header-nav" aria-label={t('app.viewsLabel')}>
+          {VIEWS.map(id => (
             <button
-              key={v.id}
-              className={`header-tab${view === v.id ? ' header-tab--active' : ''}`}
-              aria-current={view === v.id ? 'page' : undefined}
-              onClick={() => setView(v.id)}
+              key={id}
+              className={`header-tab${view === id ? ' header-tab--active' : ''}`}
+              aria-current={view === id ? 'page' : undefined}
+              onClick={() => setView(id)}
             >
-              {v.label}
+              {t(`app.tabs.${id}`)}
             </button>
           ))}
         </nav>
 
         <div className="header-right">
-          {savedNotice && <span className="header-notice" role="status">{savedNotice}</span>}
+          {savedNotice && <span className="header-notice" role="status">{t('app.savedNotice', { id: savedNotice })}</span>}
           {view === 'record' && (
             <span className="header-status">
-              {totalEvents > 0
-                ? `${totalEvents} event${totalEvents > 1 ? 's' : ''} recorded`
-                : 'No events yet'}
+              {totalEvents > 0 ? t('app.eventsRecorded', { n: totalEvents }) : t('app.noEvents')}
               {hasSppiId && `  ·  ${meta.sppi_id}`}
             </span>
           )}
@@ -315,13 +319,14 @@ export default function App({ user, onLogout }) {
                 <path d="M8 12l-4.5-4.5 1.06-1.06L7.5 9.38V2h1v7.38l2.94-2.94 1.06 1.06L8 12z"/>
                 <path d="M2 13h12v1H2z"/>
               </svg>
-              Save Instance
+              {t('app.save')}
             </button>
           )}
 
-          <a className="header-help" href="/help" target="_blank" rel="noopener noreferrer">Help</a>
+          <LanguageSwitch />
+          <a className="header-help" href="/help" target="_blank" rel="noopener noreferrer">{t('app.help')}</a>
           <span className="header-user">{user.displayName}</span>
-          <button className="header-logout" onClick={onLogout}>Sign out</button>
+          <button className="header-logout" onClick={onLogout}>{t('app.signOut')}</button>
         </div>
       </header>
 
@@ -358,14 +363,14 @@ export default function App({ user, onLogout }) {
           onClick={e => e.target === e.currentTarget && setShowConfirm(false)}
         >
           <div className="modal">
-            <p className="modal-title">Save Instance?</p>
+            <p className="modal-title">{t('app.modal.title')}</p>
 
             {emptyFields.length > 0 && (
               <div className="modal-warnings">
-                <p className="modal-warn-header">Missing required fields</p>
+                <p className="modal-warn-header">{t('app.modal.missingHeader')}</p>
                 <ul className="modal-warn-list">
-                  {emptyFields.map(f => (
-                    <li key={f} className="modal-warn-item">{f}</li>
+                  {emptyFields.map(field => (
+                    <li key={field} className="modal-warn-item">{t(`app.missing.${field}`)}</li>
                   ))}
                 </ul>
               </div>
@@ -373,25 +378,23 @@ export default function App({ user, onLogout }) {
 
             {saveError && (
               <div className="modal-warnings" role="alert">
-                <p className="modal-warn-header">{saveError.message}</p>
+                <p className="modal-warn-header">{errorMessage(saveError)}</p>
                 <ul className="modal-warn-list">
-                  {saveError.details.map(d => (
+                  {(saveError.details ?? []).map(d => (
                     <li key={d} className="modal-warn-item">{d}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <p className="modal-message">
-              Save this instance to your account and clear all fields?
-            </p>
+            <p className="modal-message">{t('app.modal.message')}</p>
 
             <div className="modal-actions">
               <button className="cancel-btn" onClick={handleExportJson} disabled={saving}>
-                Download JSON
+                {t('app.modal.download')}
               </button>
               <button className="cancel-btn" onClick={() => setShowConfirm(false)} disabled={saving}>
-                Cancel
+                {t('app.modal.cancel')}
               </button>
               <button
                 className="confirm-btn"
@@ -399,7 +402,7 @@ export default function App({ user, onLogout }) {
                 onClick={handleConfirmSave}
                 disabled={saving}
               >
-                {saving ? 'Saving…' : emptyFields.length > 0 ? 'Save anyway' : 'Save & Clear'}
+                {saving ? t('app.modal.saving') : emptyFields.length > 0 ? t('app.modal.saveAnyway') : t('app.modal.saveClear')}
               </button>
             </div>
           </div>

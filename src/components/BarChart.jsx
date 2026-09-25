@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useI18n } from '../i18n'
 
 // Horizontal frequency bars for one categorical breakdown of a single group.
 // Bar length is the share of ALL corners in the group (axis runs 0 → total).
 // rows: [{ label, count, sentence }]
 export default function BarChart({ title, caption, rows, total, countHeader }) {
+  const { t } = useI18n()
   const [showTable, setShowTable] = useState(false)
   const percent = count => Math.round((count / total) * 100)
 
@@ -15,7 +17,7 @@ export default function BarChart({ title, caption, rows, total, countHeader }) {
           {caption && <p className="chart-caption">{caption}</p>}
         </div>
         <button className="chart-toggle" onClick={() => setShowTable(v => !v)}>
-          {showTable ? 'Chart' : 'Table'}
+          {showTable ? t('insights.charts.chart') : t('insights.charts.table')}
         </button>
       </header>
 
@@ -24,8 +26,8 @@ export default function BarChart({ title, caption, rows, total, countHeader }) {
           <thead>
             <tr>
               <th scope="col">{countHeader}</th>
-              <th scope="col">Corners</th>
-              <th scope="col">Share</th>
+              <th scope="col">{t('insights.charts.corners')}</th>
+              <th scope="col">{t('insights.charts.share')}</th>
             </tr>
           </thead>
           <tbody>

@@ -1,27 +1,12 @@
 import ZoneSelector from './ZoneSelector'
+import { useI18n } from '../i18n'
 
-const GESTURES = [
-  { id: 'one_arm_up',  label: 'One Arm Up' },
-  { id: 'two_arms_up', label: 'Two Arms Up' },
-  { id: 'point_near',  label: 'Point Near' },
-  { id: 'point_far',   label: 'Point Far' },
-  { id: 'wave',        label: 'Wave' },
-  { id: 'open_hand',   label: 'Open Hand' },
-]
-
-const SIDES = [
-  { id: 'left',  label: 'Left' },
-  { id: 'right', label: 'Right' },
-]
-
-const DELIVERY_TYPES = [
-  { id: 'inswinger',  label: 'Inswinger',  desc: 'Curves toward goal' },
-  { id: 'outswinger', label: 'Outswinger', desc: 'Curves away from goal' },
-  { id: 'flat',       label: 'Flat',       desc: 'Driven, no curve' },
-  { id: 'short',      label: 'Short',      desc: 'Short pass routine' },
-]
+const GESTURES       = ['one_arm_up', 'two_arms_up', 'point_near', 'point_far', 'wave', 'open_hand']
+const SIDES          = ['left', 'right']
+const DELIVERY_TYPES = ['inswinger', 'outswinger', 'flat', 'short']
 
 export default function ExecutionSection({ data, onChange, validated }) {
+  const { t } = useI18n()
   const set = (field, value) => onChange({ ...data, [field]: value })
 
   const setExecutor = (idx, field, value) => {
@@ -64,15 +49,15 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
   return (
     <div>
-      <p className="section-title">Execution</p>
+      <p className="section-title">{t('execution.title')}</p>
 
       {/* Corner Side */}
       <div className="field-group">
-        <label className="field-label">Corner Side</label>
+        <label className="field-label">{t('execution.cornerSide')}</label>
         <div className="btn-group">
           {[
-            { id: 'left',  label: '← Left Corner'  },
-            { id: 'right', label: 'Right Corner →' },
+            { id: 'left',  label: t('execution.leftCorner')  },
+            { id: 'right', label: t('execution.rightCorner') },
           ].map(s => (
             <button
               key={s.id}
@@ -89,7 +74,7 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
       {/* Executors */}
       <div className="field-group">
-        <label className="field-label">Executor(s)</label>
+        <label className="field-label">{t('execution.executors')}</label>
         {data.executors.map((ex, i) => (
           <div key={i} className="executor-row">
             <input
@@ -97,22 +82,22 @@ export default function ExecutionSection({ data, onChange, validated }) {
               type="number"
               min="1"
               max="99"
-              placeholder="Jersey #"
+              placeholder={t('execution.jerseyPlaceholder')}
               value={ex.jersey_number}
               onChange={e => setExecutor(i, 'jersey_number', e.target.value)}
-              style={{ width: '90px', flexShrink: 0 }}
+              style={{ width: '110px', flexShrink: 0 }}
             />
             <span className={`role-badge ${ex.role}`}>
-              {ex.role === 'primary' ? 'Primary' : 'Secondary'}
+              {ex.role === 'primary' ? t('execution.primary') : t('execution.secondary')}
             </span>
             {i > 0 && (
-              <button className="icon-btn" onClick={() => removeExecutor(i)} title="Remove">×</button>
+              <button className="icon-btn" onClick={() => removeExecutor(i)} title={t('execution.remove')}>×</button>
             )}
           </div>
         ))}
         {data.executors.length < 2 && (
           <button className="dashed-btn" onClick={addExecutor}>
-            + Add Secondary Executor
+            {t('execution.addSecondary')}
           </button>
         )}
       </div>
@@ -121,7 +106,7 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
       {/* Signal toggle */}
       <div className="toggle-row">
-        <span className="toggle-label">Pre-Corner Signal</span>
+        <span className="toggle-label">{t('execution.signalToggle')}</span>
         <button
           className={`toggle-btn ${data.hasSignal ? 'on' : ''}`}
           onClick={() => set('hasSignal', !data.hasSignal)}
@@ -132,7 +117,7 @@ export default function ExecutionSection({ data, onChange, validated }) {
         <div className="sub-card" style={{ marginBottom: '14px' }}>
           <div className="field-row" style={{ marginBottom: '0' }}>
             <div className="field-group">
-              <label className="field-label">Signaler Jersey #</label>
+              <label className="field-label">{t('execution.signalerJersey')}</label>
               <input
                 className="field-input"
                 type="number"
@@ -146,21 +131,21 @@ export default function ExecutionSection({ data, onChange, validated }) {
           </div>
 
           <ZoneSelector
-            label="Signaler Location"
+            label={t('execution.signalerLocation')}
             value={data.signal.signaler.location}
             onChange={v => setSignaler('location', v)}
           />
 
           <div className="field-group">
-            <label className="field-label">Gesture</label>
+            <label className="field-label">{t('execution.gesture')}</label>
             <div className="btn-group">
-              {GESTURES.map(g => (
+              {GESTURES.map(gesture => (
                 <button
-                  key={g.id}
-                  className={`btn-option ${data.signal.gesture === g.id ? 'selected' : ''}`}
-                  onClick={() => setGesture(g.id)}
+                  key={gesture}
+                  className={`btn-option ${data.signal.gesture === gesture ? 'selected' : ''}`}
+                  onClick={() => setGesture(gesture)}
                 >
-                  {g.label}
+                  {t(`gesture.${gesture}`)}
                 </button>
               ))}
             </div>
@@ -168,15 +153,17 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
           {data.signal.gesture !== 'two_arms_up' && (
             <div className="field-group">
-              <label className="field-label">Arm Used <span className="field-optional">optional</span></label>
+              <label className="field-label">
+                {t('execution.armUsed')} <span className="field-optional">{t('metadata.optional')}</span>
+              </label>
               <div className="btn-group">
                 {SIDES.map(side => (
                   <button
-                    key={side.id}
-                    className={`btn-option ${data.signal.gesture_side === side.id ? 'selected' : ''}`}
-                    onClick={() => setSignal('gesture_side', data.signal.gesture_side === side.id ? null : side.id)}
+                    key={side}
+                    className={`btn-option ${data.signal.gesture_side === side ? 'selected' : ''}`}
+                    onClick={() => setSignal('gesture_side', data.signal.gesture_side === side ? null : side)}
                   >
-                    {side.label}
+                    {t(`side.${side}`)}
                   </button>
                 ))}
               </div>
@@ -184,7 +171,7 @@ export default function ExecutionSection({ data, onChange, validated }) {
           )}
 
           <ZoneSelector
-            label="Signal Target Zone"
+            label={t('execution.signalTarget')}
             value={data.signal.target}
             onChange={v => setSignal('target', v)}
           />
@@ -195,15 +182,15 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
       {/* Foot */}
       <div className="field-group">
-        <label className="field-label">Kicking Foot</label>
+        <label className="field-label">{t('execution.kickingFoot')}</label>
         <div className="btn-group">
-          {['left', 'right'].map(f => (
+          {['left', 'right'].map(foot => (
             <button
-              key={f}
-              className={`btn-option ${data.foot === f ? 'selected' : ''}`}
-              onClick={() => set('foot', f)}
+              key={foot}
+              className={`btn-option ${data.foot === foot ? 'selected' : ''}`}
+              onClick={() => set('foot', foot)}
             >
-              {f === 'left' ? '← Left' : 'Right →'}
+              {foot === 'left' ? t('execution.footLeft') : t('execution.footRight')}
             </button>
           ))}
         </div>
@@ -211,16 +198,16 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
       {/* Delivery type */}
       <div className="field-group">
-        <label className="field-label">Delivery Type</label>
+        <label className="field-label">{t('execution.deliveryType')}</label>
         <div className="btn-group">
-          {DELIVERY_TYPES.map(d => (
+          {DELIVERY_TYPES.map(type => (
             <button
-              key={d.id}
-              className={`btn-option ${data.delivery_type === d.id ? 'selected' : ''}`}
-              onClick={() => set('delivery_type', d.id)}
-              title={d.desc}
+              key={type}
+              className={`btn-option ${data.delivery_type === type ? 'selected' : ''}`}
+              onClick={() => set('delivery_type', type)}
+              title={t(`delivery.desc.${type}`)}
             >
-              {d.label}
+              {t(`delivery.label.${type}`)}
             </button>
           ))}
         </div>
@@ -228,7 +215,7 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
       {/* Target zone */}
       <ZoneSelector
-        label="Delivery Target Zone"
+        label={t('execution.deliveryTarget')}
         value={data.target_zone}
         onChange={v => set('target_zone', v)}
       />

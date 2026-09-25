@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
-
-const SITE_NAME = 'SPPI Corner Kick Recorder'
+import { useI18n } from './i18n'
 
 export function usePageTitle(title) {
+  const { t } = useI18n()
+  const siteName = t('site.fullName')
+
   useEffect(() => {
-    document.title = title ? `${title} · ${SITE_NAME}` : SITE_NAME
-  }, [title])
+    document.title = title ? `${title} · ${siteName}` : siteName
+  }, [title, siteName])
 }

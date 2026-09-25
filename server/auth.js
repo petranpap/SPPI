@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { sendError } from './httpError.js'
 
 const COOKIE_NAME = 'sppi_session'
 
@@ -23,15 +24,15 @@ export function createSessionManager({ jwtSecret, sessionDays, cookieSecure }, u
   async function requireAuth(req, res, next) {
     try {
       const token = req.cookies?.[COOKIE_NAME]
-      if (!token) return res.status(401).json({ error: 'Not signed in' })
+      if (!token) return sendError(res, 401, 'not_signed_in', 'Not signed in')
       const claims = jwt.verify(token, jwtSecret)
       const user = await userRepository.findById(Number(claims.sub))
-      if (!user) return res.status(401).json({ error: 'Not signed in' })
+      if (!user) return sendError(res, 401, 'not_signed_in', 'Not signed in')
       req.user = user
       next()
     } catch (error) {
       if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-        return res.status(401).json({ error: 'Not signed in' })
+        return sendError(res, 401, 'not_signed_in', 'Not signed in')
       }
       next(error)
     }

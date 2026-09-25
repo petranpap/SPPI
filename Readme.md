@@ -90,6 +90,18 @@ Client-side routing (React Router): in production Express serves `index.html` fo
 
 ---
 
+## Languages (English / Ελληνικά)
+
+The whole UI — public pages, the recorder, Insights, error messages — is available in English and Greek. A small **EN | ΕΛ** switch sits in the header (also inside the app after login). The choice is remembered in the browser; first-time visitors get Greek if their browser language is Greek, otherwise English. Switching mid-form does not lose anything you typed.
+
+- Text lives in `src/i18n/en.js` (source of truth) and `src/i18n/el.js`. Use `const { t } = useI18n()` and `t('section.key', { vars })`; `**bold**` and `[link](/path)` in a string are rendered by `<RichText>`.
+- Only labels are translated. Values stored and sent to the server (`near_post`, `inswinger`, …) and the SPPI JSON schema stay in English.
+- The server sends a stable `code` with every error (`invalid_credentials`, `duplicate_sppi_id`, …); the client shows it in the user's language and falls back to the server's English text.
+- `npm test` fails if the Greek dictionary is missing a key, has different `{placeholders}`, or if the server can send an error code that has no message in both languages. To add a language, add `src/i18n/<code>.js`, register it in `src/i18n/index.jsx`, and the same test checks it.
+- Greek needs a font with Greek glyphs: the page font stack falls back to Inter (Space Grotesk has none).
+
+---
+
 ## Accounts, data isolation & Insights
 
 - **Self-registration, gated by a shared invite code.** Set `REGISTRATION_CODE` in `.env` and share it with your coaches; sign-up also asks for it. Leave it unset only for local testing — the server logs a warning in production if it's missing, because that means anyone who finds the URL can create an account. Also rate-limited: 10 sign-ups per IP per hour, 10 failed logins per IP+username per 15 minutes. Behind a reverse proxy set `TRUST_PROXY=1` so limits see real client IPs, not the proxy's.

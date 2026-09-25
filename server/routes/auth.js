@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { createAttemptLimiter } from '../attemptLimiter.js'
 import { checkNewAccount } from '../accountRules.js'
 import { DuplicateUsernameError } from '../repositories/userRepository.js'
+import { sendError } from '../httpError.js'
 
 // Compared against when the username is unknown, so response time doesn't reveal which usernames exist.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 12)
@@ -22,15 +23,15 @@ export function createAuthRouter({ userRepository, sessions, registrationCode })
   router.post('/register', async (req, res, next) => {
     try {
       if (registerLimiter.isBlocked(req.ip)) {
-        return res.status(429).json({ error: 'Too many sign-ups from this address. Try again later.' })
+        return sendError(res, 429, 'too_many_signups', 'Too many sign-ups from this address. Try again later.')
       }
       const { username, password, displayName, inviteCode } = req.body ?? {}
       if (registrationCode && !timingSafeEqual(inviteCode ?? '', registrationCode)) {
         registerLimiter.record(req.ip)
-        return res.status(403).json({ error: 'Invalid invite code' })
+        return sendError(res, 403, 'invalid_invite_code', 'Invalid invite code')
       }
       const problem = checkNewAccount({ username, password, displayName })
-      if (problem) return res.status(400).json({ error: problem })
+      if (problem) return sendError(res, 400, problem.code, problem.message)
 
       registerLimiter.record(req.ip)
       const passwordHash = await bcrypt.hash(password, 12)
@@ -39,7 +40,7 @@ export function createAuthRouter({ userRepository, sessions, registrationCode })
       res.status(201).json({ user: { username: username.trim().toLowerCase(), displayName: displayName.trim(), organisation: null } })
     } catch (error) {
       if (error instanceof DuplicateUsernameError) {
-        return res.status(409).json({ error: 'That username is already taken' })
+        return sendError(res, 409, 'username_taken', 'That username is already taken')
       }
       next(error)
     }
@@ -49,19 +50,19 @@ export function createAuthRouter({ userRepository, sessions, registrationCode })
     try {
       const { username, password } = req.body ?? {}
       if (typeof username !== 'string' || typeof password !== 'string') {
-        return res.status(400).json({ error: 'Username and password are required' })
+        return sendError(res, 400, 'credentials_required', 'Username and password are required')
       }
 
       const limiterKey = `${req.ip}|${username.toLowerCase()}`
       if (loginLimiter.isBlocked(limiterKey)) {
-        return res.status(429).json({ error: 'Too many failed attempts. Try again later.' })
+        return sendError(res, 429, 'too_many_attempts', 'Too many failed attempts. Try again later.')
       }
 
       const user = await userRepository.findByUsername(username)
       const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
       if (!user || !passwordMatches) {
         loginLimiter.record(limiterKey)
-        return res.status(401).json({ error: 'Invalid username or password' })
+        return sendError(res, 401, 'invalid_credentials', 'Invalid username or password')
       }
 
       loginLimiter.clear(limiterKey)

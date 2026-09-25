@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { api } from './api'
+import { I18nProvider, useI18n } from './i18n'
 import App from './App'
 import Welcome from './pages/Welcome'
 import Help from './pages/Help'
@@ -8,6 +9,7 @@ import LoginScreen from './components/LoginScreen'
 
 // user: undefined = still checking the session, null = signed out
 function AppRoutes() {
+  const { t } = useI18n()
   const [user, setUser] = useState(undefined)
 
   useEffect(() => {
@@ -22,7 +24,7 @@ function AppRoutes() {
     window.location.assign('/')
   }
 
-  if (user === undefined) return <div className="auth-loading">Loading…</div>
+  if (user === undefined) return <div className="auth-loading">{t('site.loading')}</div>
 
   return (
     <Routes>
@@ -37,8 +39,10 @@ function AppRoutes() {
 
 export default function Root() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <I18nProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </I18nProvider>
   )
 }

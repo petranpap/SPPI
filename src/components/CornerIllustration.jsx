@@ -1,11 +1,15 @@
+import { useI18n } from '../i18n'
+
 // Decorative diagram of one corner phase: delivery arc, then the numbered ball contacts.
 export default function CornerIllustration() {
+  const { t } = useI18n()
+
   return (
     <svg
       className="corner-illustration"
       viewBox="0 0 360 290"
       role="img"
-      aria-label="Diagram of a corner kick: the ball is delivered into the penalty area, followed by three numbered ball contacts"
+      aria-label={t('site.illustrationAlt')}
     >
       <rect x="6" y="6" width="348" height="266" rx="14" className="ci-pitch" />
 

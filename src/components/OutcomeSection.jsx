@@ -1,40 +1,30 @@
 import ZoneSelector from './ZoneSelector'
+import { useI18n } from '../i18n'
 
-const TERMINATION_TYPES = [
-  { id: 'goal',        label: '⚽ Goal' },
-  { id: 'out_of_play', label: '↗ Out of Play' },
-  { id: 'cleared',     label: '↩ Cleared' },
-]
-
-const ACTION_TYPES = [
-  { id: 'header',    label: 'Header' },
-  { id: 'shot',      label: 'Shot' },
-  { id: 'pass',      label: 'Pass' },
-  { id: 'clearance', label: 'Clearance' },
-  { id: 'block',     label: 'Block' },
-  { id: 'touch',     label: 'Touch' },
-]
+const TERMINATION_TYPES = ['goal', 'out_of_play', 'cleared']
+const ACTION_TYPES = ['header', 'shot', 'pass', 'clearance', 'block', 'touch']
 
 export default function OutcomeSection({ data, onChange, onSave }) {
+  const { t } = useI18n()
   const set = (field, value) => onChange({ ...data, [field]: value })
   const setFinalPlayer = (field, value) =>
     onChange({ ...data, final_player: { ...data.final_player, [field]: value } })
 
   return (
     <div>
-      <p className="section-title">Outcome</p>
+      <p className="section-title">{t('outcome.title')}</p>
 
       {/* Termination type */}
       <div className="field-group">
-        <label className="field-label">Termination Type</label>
+        <label className="field-label">{t('outcome.terminationType')}</label>
         <div className="btn-group">
-          {TERMINATION_TYPES.map(t => (
+          {TERMINATION_TYPES.map(type => (
             <button
-              key={t.id}
-              className={`btn-option ${data.termination_type === t.id ? 'selected' : ''}`}
-              onClick={() => set('termination_type', t.id)}
+              key={type}
+              className={`btn-option ${data.termination_type === type ? 'selected' : ''}`}
+              onClick={() => set('termination_type', type)}
             >
-              {t.label}
+              {t(`outcome.termination.${type}`)}
             </button>
           ))}
         </div>
@@ -42,22 +32,22 @@ export default function OutcomeSection({ data, onChange, onSave }) {
 
       {/* Termination zone */}
       <ZoneSelector
-        label="Termination Zone"
+        label={t('outcome.terminationZone')}
         value={data.termination_zone}
         onChange={v => set('termination_zone', v)}
       />
 
       {/* Final action */}
       <div className="field-group">
-        <label className="field-label">Final Action</label>
+        <label className="field-label">{t('outcome.finalAction')}</label>
         <div className="btn-group">
-          {ACTION_TYPES.map(a => (
+          {ACTION_TYPES.map(action => (
             <button
-              key={a.id}
-              className={`btn-option ${data.final_action === a.id ? 'selected' : ''}`}
-              onClick={() => set('final_action', a.id)}
+              key={action}
+              className={`btn-option ${data.final_action === action ? 'selected' : ''}`}
+              onClick={() => set('final_action', action)}
             >
-              {a.label}
+              {t(`action.${action}`)}
             </button>
           ))}
         </div>
@@ -67,12 +57,12 @@ export default function OutcomeSection({ data, onChange, onSave }) {
 
       {/* Final player */}
       <label className="field-label" style={{ marginBottom: '10px', display: 'block' }}>
-        Final Player
+        {t('outcome.finalPlayer')}
       </label>
 
       <div className="field-row">
         <div className="field-group">
-          <label className="field-label">Jersey #</label>
+          <label className="field-label">{t('outcome.jersey')}</label>
           <input
             className="field-input"
             type="number"
@@ -84,16 +74,16 @@ export default function OutcomeSection({ data, onChange, onSave }) {
           />
         </div>
         <div className="field-group">
-          <label className="field-label">Team</label>
+          <label className="field-label">{t('outcome.team')}</label>
           <div className="btn-group" style={{ flexDirection: 'column', gap: '5px' }}>
-            {['attacking', 'defending'].map(t => (
+            {['attacking', 'defending'].map(team => (
               <button
-                key={t}
-                className={`btn-option ${data.final_player.team === t ? 'selected' : ''}`}
-                onClick={() => setFinalPlayer('team', t)}
+                key={team}
+                className={`btn-option ${data.final_player.team === team ? 'selected' : ''}`}
+                onClick={() => setFinalPlayer('team', team)}
                 style={{ fontSize: '11px' }}
               >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t(`team.${team}`)}
               </button>
             ))}
           </div>
@@ -104,7 +94,7 @@ export default function OutcomeSection({ data, onChange, onSave }) {
 
       {/* Spawned instance */}
       <div className="toggle-row">
-        <span className="toggle-label">Spawned Instance</span>
+        <span className="toggle-label">{t('outcome.spawned')}</span>
         <button
           className={`toggle-btn ${data.hasSpawned ? 'on' : ''}`}
           onClick={() => set('hasSpawned', !data.hasSpawned)}
@@ -112,24 +102,24 @@ export default function OutcomeSection({ data, onChange, onSave }) {
       </div>
       {data.hasSpawned && (
         <div className="field-group">
-          <label className="field-label">Spawned SPPI ID</label>
+          <label className="field-label">{t('outcome.spawnedId')}</label>
           <input
             className="field-input"
             value={data.spawned_instance}
             onChange={e => set('spawned_instance', e.target.value)}
-            placeholder="e.g. SPPI_002 (next linked phase)"
+            placeholder={t('outcome.spawnedPlaceholder')}
           />
         </div>
       )}
       {!data.hasSpawned && (
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', marginTop: '-4px' }}>
-          Enable if this corner led to a short-corner or subsequent set piece.
+          {t('outcome.spawnedHint')}
         </p>
       )}
 
       {/* Parent instance */}
       <div className="toggle-row">
-        <span className="toggle-label">Parent Instance</span>
+        <span className="toggle-label">{t('outcome.parent')}</span>
         <button
           className={`toggle-btn ${data.hasParent ? 'on' : ''}`}
           onClick={() => set('hasParent', !data.hasParent)}
@@ -137,25 +127,25 @@ export default function OutcomeSection({ data, onChange, onSave }) {
       </div>
       {data.hasParent && (
         <div className="field-group">
-          <label className="field-label">Parent SPPI ID</label>
+          <label className="field-label">{t('outcome.parentId')}</label>
           <input
             className="field-input"
             value={data.parent_instance}
             onChange={e => set('parent_instance', e.target.value)}
-            placeholder="e.g. SPPI_001 (parent phase)"
+            placeholder={t('outcome.parentPlaceholder')}
           />
         </div>
       )}
       {!data.hasParent && (
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '-4px' }}>
-          Enable if this phase was derived from a previous SPPI instance.
+          {t('outcome.parentHint')}
         </p>
       )}
 
       <div className="divider" />
 
       <button className="confirm-btn" onClick={onSave}>
-        Save Instance
+        {t('outcome.save')}
       </button>
     </div>
   )

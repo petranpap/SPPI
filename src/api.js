@@ -1,21 +1,27 @@
 export class ApiError extends Error {
-  constructor(status, message, details = []) {
+  constructor(status, message, details = [], code = null) {
     super(message)
     this.status  = status
     this.details = details
+    this.code    = code
   }
 }
 
 async function request(method, path, body) {
-  const response = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body:    body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  })
+  let response
+  try {
+    response = await fetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body:    body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    })
+  } catch {
+    throw new ApiError(0, 'Network error', [], 'network')
+  }
   const data = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
-    throw new ApiError(response.status, data?.error ?? 'Request failed', data?.details ?? [])
+    throw new ApiError(response.status, data?.error ?? 'Request failed', data?.details ?? [], data?.code ?? null)
   }
   return data
 }

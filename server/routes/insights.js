@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { buildInsights } from '../insights.js'
 import { normalizeName } from '../nameKey.js'
+import { sendError } from '../httpError.js'
 
 const GROUP_MODES = new Set(['team', 'coach'])
 
@@ -11,7 +12,7 @@ export function createInsightsRouter({ annotationRepository }) {
 
   const requireGroupMode = (req, res, next) => {
     if (!GROUP_MODES.has(req.query.by)) {
-      return res.status(400).json({ error: "Query parameter 'by' must be 'team' or 'coach'" })
+      return sendError(res, 400, 'invalid_group_mode', "Query parameter 'by' must be 'team' or 'coach'")
     }
     next()
   }
@@ -28,7 +29,7 @@ export function createInsightsRouter({ annotationRepository }) {
   router.get('/insights', requireGroupMode, async (req, res, next) => {
     try {
       const name = typeof req.query.name === 'string' ? req.query.name : ''
-      if (!name.trim()) return res.status(400).json({ error: "Query parameter 'name' is required" })
+      if (!name.trim()) return sendError(res, 400, 'group_name_required', "Query parameter 'name' is required")
 
       const payloads = await annotationRepository.payloadsForGroup(req.user.id, req.query.by, normalizeName(name))
       res.json({ by: req.query.by, name: name.trim(), ...buildInsights(payloads) })

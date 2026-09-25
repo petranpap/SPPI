@@ -1,38 +1,40 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
+import { useI18n } from '../i18n'
 import PublicLayout from './PublicLayout'
 import { usePageTitle } from '../usePageTitle'
 
 export default function LoginScreen({ onLogin }) {
+  const { t, errorMessage } = useI18n()
   const [searchParams] = useSearchParams()
-  const [mode,        setMode]        = useState(searchParams.get('mode') === 'register' ? 'register' : 'login')
+  const [mode,        setMode]        = useState(searchParams.get('mode') === 'register' ? 'register' : 'login')   // 'login' | 'register'
   const [username,    setUsername]    = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password,    setPassword]    = useState('')
   const [inviteCode,  setInviteCode]  = useState('')
-  const [error,       setError]       = useState('')
+  const [error,       setError]       = useState(null)
   const [pending,     setPending]     = useState(false)
 
   const isRegister = mode === 'register'
-  usePageTitle(isRegister ? 'Create account' : 'Sign in')
+  usePageTitle(t(isRegister ? 'login.titleRegister' : 'login.titleSignIn'))
 
   const switchMode = () => {
     setMode(isRegister ? 'login' : 'register')
-    setError('')
+    setError(null)
   }
 
   const handleSubmit = async e => {
     e.preventDefault()
     setPending(true)
-    setError('')
+    setError(null)
     try {
       const { user } = isRegister
         ? await api.register(username.trim(), password, displayName.trim(), inviteCode.trim())
         : await api.login(username.trim(), password)
       onLogin(user)
     } catch (err) {
-      setError(err.message)
+      setError(err)
       setPending(false)
     }
   }
@@ -41,11 +43,11 @@ export default function LoginScreen({ onLogin }) {
     <PublicLayout user={null} hideSignIn>
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1 className="login-heading">{isRegister ? 'Create your account' : 'Sign in'}</h1>
+        <h1 className="login-heading">{t(isRegister ? 'login.headingRegister' : 'login.headingSignIn')}</h1>
 
         {isRegister && (
           <div className="field-group">
-            <label className="field-label" htmlFor="login-name">Your name</label>
+            <label className="field-label" htmlFor="login-name">{t('login.name')}</label>
             <input
               id="login-name"
               className="field-input"
@@ -60,7 +62,7 @@ export default function LoginScreen({ onLogin }) {
         )}
 
         <div className="field-group">
-          <label className="field-label" htmlFor="login-username">Username</label>
+          <label className="field-label" htmlFor="login-username">{t('login.username')}</label>
           <input
             id="login-username"
             className="field-input"
@@ -73,7 +75,7 @@ export default function LoginScreen({ onLogin }) {
         </div>
 
         <div className="field-group">
-          <label className="field-label" htmlFor="login-password">Password</label>
+          <label className="field-label" htmlFor="login-password">{t('login.password')}</label>
           <input
             id="login-password"
             className="field-input"
@@ -84,12 +86,12 @@ export default function LoginScreen({ onLogin }) {
             minLength={isRegister ? 10 : undefined}
             required
           />
-          {isRegister && <p className="field-hint">At least 10 characters.</p>}
+          {isRegister && <p className="field-hint">{t('login.passwordHint')}</p>}
         </div>
 
         {isRegister && (
           <div className="field-group">
-            <label className="field-label" htmlFor="login-invite">Invite code</label>
+            <label className="field-label" htmlFor="login-invite">{t('login.inviteCode')}</label>
             <input
               id="login-invite"
               className="field-input"
@@ -98,26 +100,24 @@ export default function LoginScreen({ onLogin }) {
               autoComplete="off"
               required
             />
-            <p className="field-hint">Ask your administrator for the invite code.</p>
+            <p className="field-hint">{t('login.inviteHint')}</p>
           </div>
         )}
 
-        {error && <p className="login-error" role="alert">{error}</p>}
+        {error && <p className="login-error" role="alert">{errorMessage(error)}</p>}
 
         <button className="confirm-btn" type="submit" disabled={pending}>
-          {pending ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'}
+          {pending ? t('login.wait') : t(isRegister ? 'login.submitRegister' : 'login.submitSignIn')}
         </button>
 
         <p className="login-hint">
-          {isRegister ? 'Already have an account?' : 'New here?'}{' '}
+          {t(isRegister ? 'login.haveAccount' : 'login.newHere')}{' '}
           <button type="button" className="link-btn" onClick={switchMode}>
-            {isRegister ? 'Sign in' : 'Create an account'}
+            {t(isRegister ? 'login.signInLink' : 'login.createLink')}
           </button>
         </p>
-        {isRegister && (
-          <p className="login-hint">You will only ever see the corners you annotate yourself.</p>
-        )}
-        <p className="login-hint"><Link to="/help" className="link-btn">Help &amp; FAQ</Link></p>
+        {isRegister && <p className="login-hint">{t('login.privacyNote')}</p>}
+        <p className="login-hint"><Link to="/help" className="link-btn">{t('site.helpFaq')}</Link></p>
       </form>
     </div>
     </PublicLayout>

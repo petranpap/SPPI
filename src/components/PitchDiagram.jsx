@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useI18n } from '../i18n'
 
 // ── Layout: goal at BOTTOM, corner taker at BOTTOM corners ────────────────
 // SVG canvas 520 × 370
@@ -25,14 +26,6 @@ const ZONE_COLOR = {
   penalty_spot: '#a855f7',
   center:       '#eab308',
   outside_area: '#64748b',
-}
-
-const ZONE_LABEL = {
-  near_post:    'NP',
-  far_post:     'FP',
-  penalty_spot: 'PS',
-  center:       'CTR',
-  outside_area: 'OUT',
 }
 
 const ZONE_RECT = {
@@ -115,6 +108,7 @@ function CurvedArrow({ from, to, color, label }) {
 
 // ── Main component ────────────────────────────────────────────────────────
 export default function PitchDiagram({ events, execution, onExecChange }) {
+  const { t } = useI18n()
   const [hoveredZone, setHoveredZone] = useState(null)
 
   const activeZones = new Set()
@@ -153,7 +147,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
 
       {/* Title */}
       <p className="pitch-title">
-        Live Pitch · click corner flag to set side · click zone to set target
+        {t('pitch.title')}
       </p>
 
       {/* SVG wrapper — fills available space */}
@@ -215,7 +209,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
             textAnchor="middle" fontSize="8"
             fill="rgba(255,255,255,0.35)" fontWeight="700" letterSpacing="2"
           >
-            GOAL
+            {t('pitch.goal')}
           </text>
 
           {/* ── Penalty spot ── */}
@@ -286,7 +280,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
                   fill={active ? 'white' : 'rgba(255,255,255,0.4)'}
                   fontWeight="700" fontFamily="monospace"
                 >
-                  {ZONE_LABEL[zone]}
+                  {t(`zone.abbr.${zone}`)}
                 </text>
               </g>
             )
@@ -301,7 +295,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
               fill="rgba(255,255,255,0.2)" fontWeight="500"
               style={{ pointerEvents: 'none' }}
             >
-              {zone.replace(/_/g, ' ')}
+              {t(`zone.plain.${zone}`).toLowerCase()}
             </text>
           ))}
 
@@ -378,7 +372,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
                   letterSpacing="0.5"
                   style={{ pointerEvents: 'none' }}
                 >
-                  {side === 'left' ? '← L' : 'R →'}
+                  {side === 'left' ? t('pitch.sideLeft') : t('pitch.sideRight')}
                 </text>
               </g>
             )
@@ -391,24 +385,24 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
       <div className="pitch-legend">
         <div className="legend-item">
           <div className="legend-dot" style={{ background: '#f5c518', borderRadius: '2px' }} />
-          <span>Active corner</span>
+          <span>{t('pitch.activeCorner')}</span>
         </div>
         <div className="legend-item">
           <div className="legend-dot" style={{ background: '#22c55e', borderRadius: '2px', width: '16px', height: '4px' }} />
-          <span>Delivery</span>
+          <span>{t('pitch.delivery')}</span>
         </div>
         <div className="legend-item">
           <div className="legend-dot" style={{ background: '#60a5fa' }} />
-          <span>Attacking</span>
+          <span>{t('pitch.attacking')}</span>
         </div>
         <div className="legend-item">
           <div className="legend-dot" style={{ background: '#f87171' }} />
-          <span>Defending</span>
+          <span>{t('pitch.defending')}</span>
         </div>
         {Object.entries(ZONE_COLOR).map(([zone, color]) => (
           <div key={zone} className="legend-item">
             <div className="legend-dot" style={{ background: color }} />
-            <span>{zone.replace(/_/g, ' ')}</span>
+            <span>{t(`zone.plain.${zone}`).toLowerCase()}</span>
           </div>
         ))}
       </div>
