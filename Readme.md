@@ -60,7 +60,7 @@ npm run build     # Production build → dist/
 npm run preview   # Preview production build
 ```
 
-**Requirements:** Node.js ≥ 22.9, npm ≥ 9
+**Requirements:** Node.js ≥ 20 (tested on 20.20 and 24), npm ≥ 9. `better-sqlite3` is pinned to 12.9.0, the newest release that ships a prebuilt binary for Node 20; newer releases need Node 22+ and crash on Node 20.
 
 ### Running with the backend
 
