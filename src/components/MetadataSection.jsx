@@ -1,4 +1,4 @@
-export default function MetadataSection({ data, onChange, validated }) {
+export default function MetadataSection({ data, onChange, validated, suggestions = { teams: [], coaches: [] } }) {
   const set = (field, value) => onChange({ ...data, [field]: value })
   const err = (val) => validated && !String(val).trim() ? 'is-error' : ''
 
@@ -79,6 +79,7 @@ export default function MetadataSection({ data, onChange, validated }) {
             value={data.attacking_team}
             onChange={e => set('attacking_team', e.target.value)}
             placeholder="Taking the corner"
+            list="team-suggestions"
           />
         </div>
         <div className="field-group">
@@ -91,6 +92,25 @@ export default function MetadataSection({ data, onChange, validated }) {
           />
         </div>
       </div>
+
+      <div className="field-group">
+        <label className="field-label">Attacking Coach <span className="field-optional">optional</span></label>
+        <input
+          className="field-input"
+          value={data.attacking_coach}
+          onChange={e => set('attacking_coach', e.target.value)}
+          placeholder="Head coach of the team taking the corner"
+          list="coach-suggestions"
+        />
+        <p className="field-hint">Lets you group this coach's corners across clubs in Insights.</p>
+      </div>
+
+      <datalist id="team-suggestions">
+        {suggestions.teams.map(name => <option key={name} value={name} />)}
+      </datalist>
+      <datalist id="coach-suggestions">
+        {suggestions.coaches.map(name => <option key={name} value={name} />)}
+      </datalist>
     </div>
   )
 }

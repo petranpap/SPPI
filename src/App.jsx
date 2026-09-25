@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { api } from './api'
 import MetadataSection  from './components/MetadataSection'
 import ContextSection   from './components/ContextSection'
 import ExecutionSection from './components/ExecutionSection'
 import EventsSection    from './components/EventsSection'
 import OutcomeSection   from './components/OutcomeSection'
 import PitchDiagram     from './components/PitchDiagram'
+import InsightsView     from './components/InsightsView'
 
 // ── Initial state ──────────────────────────────────────────────────────────────
 const INIT_META = {
@@ -16,6 +18,7 @@ const INIT_META = {
   away_team:      '',
   attacking_team: '',
   defending_team: '',
+  attacking_coach: '',
 }
 
 const INIT_CTX = {
@@ -31,6 +34,7 @@ const INIT_EXEC = {
   signal: {
     signaler: { jersey_number: '', location: 'near_post' },
     gesture:  'one_arm_up',
+    gesture_side: null,
     target:   'near_post',
   },
   foot:          'right',
@@ -78,6 +82,7 @@ function buildSppi(meta, ctx, exec, events, outcome) {
           location:  exec.signal.signaler.location,
         },
         gesture: exec.signal.gesture,
+        gesture_side: exec.signal.gesture_side ?? null,
         target:  exec.signal.target,
       }
     : null
@@ -94,6 +99,7 @@ function buildSppi(meta, ctx, exec, events, outcome) {
       away_team:      meta.away_team,
       attacking_team: meta.attacking_team,
       defending_team: meta.defending_team,
+      attacking_coach: meta.attacking_coach.trim() || null,
     },
     context: {
       minute:         parseInt(ctx.minute) || 0,
@@ -101,9 +107,9 @@ function buildSppi(meta, ctx, exec, events, outcome) {
       score_home:     parseInt(ctx.score_home) || 0,
       score_away:     parseInt(ctx.score_away) || 0,
       set_piece_type: 'corner',
+      corner_side:    exec.corner_side,
     },
     execution: {
-      corner_side:   exec.corner_side,
       executors,
       signal,
       foot:          exec.foot,
@@ -158,8 +164,21 @@ function getEmptyFields(meta, ctx, exec, events) {
   return errors
 }
 
+function downloadJson(json) {
+  const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `${json.metadata.sppi_id}_${json.metadata.match_id.trim() || 'unknown'}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
-export default function App() {
+export default function App({ user, onLogout }) {
+  const [view,        setView]        = useState('record')
   const [active,      setActive]      = useState('metadata')
   const [meta,        setMeta]        = useState(INIT_META)
   const [ctx,         setCtx]         = useState(INIT_CTX)
@@ -169,28 +188,45 @@ export default function App() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [validated,   setValidated]   = useState(false)
   const [emptyFields, setEmptyFields] = useState([])
+  const [saving,      setSaving]      = useState(false)
+  const [saveError,   setSaveError]   = useState(null)
+  const [savedNotice, setSavedNotice] = useState('')
+  const [suggestions, setSuggestions] = useState({ teams: [], coaches: [] })
+
+  const loadSuggestions = () =>
+    Promise.all([api.groups('team'), api.groups('coach')])
+      .then(([teams, coaches]) => setSuggestions({
+        teams:   teams.groups.map(g => g.name),
+        coaches: coaches.groups.map(g => g.name),
+      }))
+      .catch(() => {})
+
+  useEffect(() => { loadSuggestions() }, [])
 
   const handleSaveAttempt = () => {
     setValidated(true)
     const errors = getEmptyFields(meta, ctx, exec, events)
     setEmptyFields(errors)
+    setSaveError(null)
     setShowConfirm(true)
   }
 
-  const handleConfirmSave = () => {
-    const json    = buildSppi(meta, ctx, exec, events, outcome)
-    const sppiId  = json.metadata.sppi_id
-    const matchId = meta.match_id.trim() || 'unknown'
-    const blob    = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })
-    const url     = URL.createObjectURL(blob)
-    const a       = document.createElement('a')
-    a.href        = url
-    a.download    = `exports/${sppiId}_${matchId}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    // Reset everything
+  const handleConfirmSave = async () => {
+    const json = buildSppi(meta, ctx, exec, events, outcome)
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await api.saveAnnotation(json)
+    } catch (err) {
+      // Keep the form intact so nothing the annotator entered is lost.
+      if (err.status === 401) return onLogout()
+      setSaveError({ message: err.message, details: err.details })
+      setSaving(false)
+      return
+    }
+    setSaving(false)
+    setSavedNotice(`Saved ${json.metadata.sppi_id}`)
+    setTimeout(() => setSavedNotice(''), 4000)
     setMeta(INIT_META)
     setCtx(INIT_CTX)
     setExec(INIT_EXEC)
@@ -200,7 +236,10 @@ export default function App() {
     setValidated(false)
     setShowConfirm(false)
     setEmptyFields([])
+    loadSuggestions()
   }
+
+  const handleExportJson = () => downloadJson(buildSppi(meta, ctx, exec, events, outcome))
 
   const totalEvents = events.length
   const hasSppiId   = meta.sppi_id.trim() !== ''
@@ -246,26 +285,48 @@ export default function App() {
           <span className="brand-title">Corner Kick Recorder</span>
         </div>
 
-        <div className="header-right">
-          <span className="header-status">
-            {totalEvents > 0
-              ? `${totalEvents} event${totalEvents > 1 ? 's' : ''} recorded`
-              : 'No events yet'}
-            {hasSppiId && `  ·  ${meta.sppi_id}`}
-          </span>
+        <nav className="header-nav" aria-label="Views">
+          {[{ id: 'record', label: 'Record' }, { id: 'insights', label: 'Insights' }].map(v => (
+            <button
+              key={v.id}
+              className={`header-tab${view === v.id ? ' header-tab--active' : ''}`}
+              aria-current={view === v.id ? 'page' : undefined}
+              onClick={() => setView(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </nav>
 
-          <button className="save-btn" onClick={handleSaveAttempt}>
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 12l-4.5-4.5 1.06-1.06L7.5 9.38V2h1v7.38l2.94-2.94 1.06 1.06L8 12z"/>
-              <path d="M2 13h12v1H2z"/>
-            </svg>
-            Save Instance
-          </button>
+        <div className="header-right">
+          {savedNotice && <span className="header-notice" role="status">{savedNotice}</span>}
+          {view === 'record' && (
+            <span className="header-status">
+              {totalEvents > 0
+                ? `${totalEvents} event${totalEvents > 1 ? 's' : ''} recorded`
+                : 'No events yet'}
+              {hasSppiId && `  ·  ${meta.sppi_id}`}
+            </span>
+          )}
+
+          {view === 'record' && (
+            <button className="save-btn" onClick={handleSaveAttempt}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 12l-4.5-4.5 1.06-1.06L7.5 9.38V2h1v7.38l2.94-2.94 1.06 1.06L8 12z"/>
+                <path d="M2 13h12v1H2z"/>
+              </svg>
+              Save Instance
+            </button>
+          )}
+
+          <span className="header-user">{user.displayName}</span>
+          <button className="header-logout" onClick={onLogout}>Sign out</button>
         </div>
       </header>
 
       {/* ── Body ── */}
-      <div className="app-body">
+      {view === 'insights' && <InsightsView />}
+      {view === 'record' && <div className="app-body">
 
         {/* ── Form panel ── */}
         <div className="form-panel">
@@ -274,7 +335,7 @@ export default function App() {
           </nav>
 
           <div className="section-content">
-            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} />}
+            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} suggestions={suggestions} />}
             {active === 'context'   && <ContextSection   data={ctx}     onChange={setCtx}     validated={validated} />}
             {active === 'execution' && <ExecutionSection data={exec}    onChange={setExec}    validated={validated} />}
             {active === 'events'    && <EventsSection    events={events} onChange={setEvents} />}
@@ -287,7 +348,7 @@ export default function App() {
           <PitchDiagram events={events} execution={exec} onExecChange={setExec} />
         </div>
 
-      </div>
+      </div>}
 
       {/* ── Confirmation modal ── */}
       {showConfirm && (
@@ -309,24 +370,35 @@ export default function App() {
               </div>
             )}
 
+            {saveError && (
+              <div className="modal-warnings" role="alert">
+                <p className="modal-warn-header">{saveError.message}</p>
+                <ul className="modal-warn-list">
+                  {saveError.details.map(d => (
+                    <li key={d} className="modal-warn-item">{d}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <p className="modal-message">
-              Save as{' '}
-              <strong>
-                exports/{meta.sppi_id.trim() || `SPPI_${Date.now()}`}_{meta.match_id.trim() || 'unknown'}.json
-              </strong>
-              {' '}and clear all fields?
+              Save this instance to your account and clear all fields?
             </p>
 
             <div className="modal-actions">
-              <button className="cancel-btn" onClick={() => setShowConfirm(false)}>
+              <button className="cancel-btn" onClick={handleExportJson} disabled={saving}>
+                Download JSON
+              </button>
+              <button className="cancel-btn" onClick={() => setShowConfirm(false)} disabled={saving}>
                 Cancel
               </button>
               <button
                 className="confirm-btn"
                 style={{ width: 'auto', padding: '10px 24px' }}
                 onClick={handleConfirmSave}
+                disabled={saving}
               >
-                {emptyFields.length > 0 ? 'Save anyway' : 'Save & Clear'}
+                {saving ? 'Saving…' : emptyFields.length > 0 ? 'Save anyway' : 'Save & Clear'}
               </button>
             </div>
           </div>

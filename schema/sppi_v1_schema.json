@@ -20,7 +20,8 @@
         "home_team":      { "type": "string" },
         "away_team":      { "type": "string" },
         "attacking_team": { "type": "string" },
-        "defending_team": { "type": "string" }
+        "defending_team": { "type": "string" },
+        "attacking_coach": { "type": ["string","null"], "description": "Optional. Head coach of the attacking team at the time of the match (analyst-entered free text). Lets a coach's corner routines be grouped across clubs." }
       }
     },
 
@@ -73,6 +74,7 @@
                   }
                 },
                 "gesture": { "type": "string", "enum": ["one_arm_up","two_arms_up","point_near","point_far","wave","open_hand","none"] },
+                "gesture_side": { "type": ["string","null"], "enum": ["left","right",null], "description": "Optional. Which arm the signaler used (left/right); null when not recorded or not applicable (e.g. two_arms_up)." },
                 "target":  { "type": "string", "enum": ["near_post","far_post","center","penalty_spot","outside_area"] }
               }
             }

@@ -9,6 +9,11 @@ const GESTURES = [
   { id: 'open_hand',   label: 'Open Hand' },
 ]
 
+const SIDES = [
+  { id: 'left',  label: 'Left' },
+  { id: 'right', label: 'Right' },
+]
+
 const DELIVERY_TYPES = [
   { id: 'inswinger',  label: 'Inswinger',  desc: 'Curves toward goal' },
   { id: 'outswinger', label: 'Outswinger', desc: 'Curves away from goal' },
@@ -37,6 +42,16 @@ export default function ExecutionSection({ data, onChange, validated }) {
 
   const setSignal = (field, value) =>
     onChange({ ...data, signal: { ...data.signal, [field]: value } })
+
+  const setGesture = gesture =>
+    onChange({
+      ...data,
+      signal: {
+        ...data.signal,
+        gesture,
+        gesture_side: gesture === 'two_arms_up' ? null : data.signal.gesture_side,
+      },
+    })
 
   const setSignaler = (field, value) =>
     onChange({
@@ -143,13 +158,30 @@ export default function ExecutionSection({ data, onChange, validated }) {
                 <button
                   key={g.id}
                   className={`btn-option ${data.signal.gesture === g.id ? 'selected' : ''}`}
-                  onClick={() => setSignal('gesture', g.id)}
+                  onClick={() => setGesture(g.id)}
                 >
                   {g.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {data.signal.gesture !== 'two_arms_up' && (
+            <div className="field-group">
+              <label className="field-label">Arm Used <span className="field-optional">optional</span></label>
+              <div className="btn-group">
+                {SIDES.map(side => (
+                  <button
+                    key={side.id}
+                    className={`btn-option ${data.signal.gesture_side === side.id ? 'selected' : ''}`}
+                    onClick={() => setSignal('gesture_side', data.signal.gesture_side === side.id ? null : side.id)}
+                  >
+                    {side.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <ZoneSelector
             label="Signal Target Zone"

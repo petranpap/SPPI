@@ -33,6 +33,12 @@ SPPI/
 │   │   ├── PitchDiagram.jsx       # Interactive SVG pitch visualization
 │   │   └── ZoneSelector.jsx       # Five-zone selector component
 │   └── index.css
+├── server/                 # Express + Knex API (auth, persistence, insights)
+│   ├── repositories/       # ALL database access; annotation queries are user-scoped
+│   ├── routes/             # auth, annotations, insights
+│   ├── migrations/         # reversible Knex migrations
+│   ├── scripts/create-user.js
+│   └── test/               # isolation + insights tests (node:test)
 ├── dist/                   # Production build
 ├── examples/               # Demo SPPI JSON instances
 │   └── demo_SPPI_001.json
@@ -54,7 +60,30 @@ npm run build     # Production build → dist/
 npm run preview   # Preview production build
 ```
 
-**Requirements:** Node.js ≥ 18, npm ≥ 9
+**Requirements:** Node.js ≥ 22.9, npm ≥ 9
+
+### Running with the backend
+
+```bash
+cp .env.example .env                       # set JWT_SECRET
+npm run dev:server                         # API on http://localhost:3001 (creates data/sppi.sqlite)
+npm run dev                                # UI on http://localhost:5173, proxies /api to the API
+npm test                                   # backend tests
+```
+
+Production: `npm run build && NODE_ENV=production npm start` — Express serves `dist/` and the API on one port.
+Users sign up themselves on the login screen (username, name, password ≥ 10 characters) and are signed in immediately.
+Admin tools: `npm run create-user -- --username maria --name "Maria K."` creates an account, and `--reset` sets a new password.
+
+---
+
+## Accounts, data isolation & Insights
+
+- **Self-registration, gated by a shared invite code.** Set `REGISTRATION_CODE` in `.env` and share it with your coaches; sign-up also asks for it. Leave it unset only for local testing — the server logs a warning in production if it's missing, because that means anyone who finds the URL can create an account. Also rate-limited: 10 sign-ups per IP per hour, 10 failed logins per IP+username per 15 minutes. Behind a reverse proxy set `TRUST_PROXY=1` so limits see real client IPs, not the proxy's.
+- **Every annotation belongs to the user who saved it, and only that user can read it.** The user id comes from the signed session cookie, never from the request. All annotation queries live in `server/repositories/annotationRepository.js` and require a user id. There is **no endpoint that queries by team, coach or user across accounts** — this is deliberate scope control, not an omission. Two managers annotating "Real Madrid" each see only their own corners.
+- **Insights** (Record ⇄ Insights tab): group your own annotations by attacking team or by attacking coach. Once a group has ≥ 10 of your annotations you get descriptive counts (signal → delivery target, delivery type, target zone). Below 10, the server returns no breakdown at all. These are frequency counts of what you recorded — not predictions.
+- Storage is SQLite by default. Set `DATABASE_URL` (and `npm i pg`) to run on Postgres; the schema is managed by Knex migrations.
+- StatsBomb timestamps, where used for video navigation elsewhere, never pre-fill or influence annotation fields.
 
 ---
 
@@ -152,6 +181,7 @@ Key validation rules:
 | Version | Date | Notes |
 |---|---|---|
 | v1.0 | 2025 | Initial specification. Corner kicks. Manual entry only. |
+| v1.0+ | 2026 | Additive, optional: `metadata.attacking_coach`, `execution.signal.gesture_side`. |
 
 ---
 
