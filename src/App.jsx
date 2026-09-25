@@ -319,6 +319,7 @@ export default function App({ user, onLogout }) {
             </button>
           )}
 
+          <a className="header-help" href="/help" target="_blank" rel="noopener noreferrer">Help</a>
           <span className="header-user">{user.displayName}</span>
           <button className="header-logout" onClick={onLogout}>Sign out</button>
         </div>

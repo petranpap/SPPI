@@ -1,6 +1,8 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import bcrypt from 'bcryptjs'
 import { createDb, migrateToLatest } from '../db.js'
 import { createApp } from '../app.js'
@@ -256,4 +258,16 @@ test('sign-ups are rate limited per address', async () => {
   limitedApp.close()
   assert.deepEqual(statuses.slice(0, 10).filter(s => s !== 201), [])
   assert.equal(statuses[10], 429)
+})
+
+const distExists = fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'dist', 'index.html'))
+
+test('client routes serve the app shell; missing files and unknown API paths still 404/401', { skip: !distExists && 'run `npm run build` first' }, async () => {
+  for (const route of ['/', '/login', '/help', '/app']) {
+    const response = await fetch(baseUrl + route)
+    assert.equal(response.status, 200, route)
+    assert.match(response.headers.get('content-type'), /text\/html/, route)
+  }
+  assert.equal((await fetch(baseUrl + '/assets/does-not-exist.js')).status, 404)
+  assert.equal((await fetch(baseUrl + '/api/does-not-exist')).status, 401)
 })

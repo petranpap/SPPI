@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
+import PublicLayout from './PublicLayout'
+import { usePageTitle } from '../usePageTitle'
 
 export default function LoginScreen({ onLogin }) {
-  const [mode,        setMode]        = useState('login')   // 'login' | 'register'
+  const [searchParams] = useSearchParams()
+  const [mode,        setMode]        = useState(searchParams.get('mode') === 'register' ? 'register' : 'login')
   const [username,    setUsername]    = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password,    setPassword]    = useState('')
@@ -11,6 +15,7 @@ export default function LoginScreen({ onLogin }) {
   const [pending,     setPending]     = useState(false)
 
   const isRegister = mode === 'register'
+  usePageTitle(isRegister ? 'Create account' : 'Sign in')
 
   const switchMode = () => {
     setMode(isRegister ? 'login' : 'register')
@@ -33,12 +38,10 @@ export default function LoginScreen({ onLogin }) {
   }
 
   return (
+    <PublicLayout user={null} hideSignIn>
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="header-brand login-brand">
-          <span className="brand-pill">SPPI</span>
-          <span className="login-title">Corner Kick Recorder</span>
-        </div>
+        <h1 className="login-heading">{isRegister ? 'Create your account' : 'Sign in'}</h1>
 
         {isRegister && (
           <div className="field-group">
@@ -114,7 +117,9 @@ export default function LoginScreen({ onLogin }) {
         {isRegister && (
           <p className="login-hint">You will only ever see the corners you annotate yourself.</p>
         )}
+        <p className="login-hint"><Link to="/help" className="link-btn">Help &amp; FAQ</Link></p>
       </form>
     </div>
+    </PublicLayout>
   )
 }

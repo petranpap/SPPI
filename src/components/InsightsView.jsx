@@ -37,12 +37,22 @@ export default function InsightsView() {
   const [insights, setInsights] = useState(null)
   const [error,    setError]    = useState('')
 
-  useEffect(() => {
-    let stale = false
+  // Reset in the same update as the click, so no frame renders the previous mode's or group's data.
+  const changeMode = mode => {
+    setBy(mode)
     setGroups(null)
     setSelected(null)
     setInsights(null)
     setError('')
+  }
+
+  const selectGroup = name => {
+    setSelected(name)
+    setInsights(null)
+  }
+
+  useEffect(() => {
+    let stale = false
     api.groups(by)
       .then(({ groups }) => {
         if (stale) return
@@ -56,7 +66,6 @@ export default function InsightsView() {
   useEffect(() => {
     if (!selected) return
     let stale = false
-    setInsights(null)
     api.insights(by, selected)
       .then(result => !stale && setInsights(result))
       .catch(err => !stale && setError(err.message))
@@ -72,7 +81,7 @@ export default function InsightsView() {
             <button
               key={mode.id}
               className={`btn-option ${by === mode.id ? 'selected' : ''}`}
-              onClick={() => setBy(mode.id)}
+              onClick={() => changeMode(mode.id)}
             >
               {mode.label}
             </button>
@@ -98,7 +107,7 @@ export default function InsightsView() {
               <li key={group.name}>
                 <button
                   className={`group-item${selected === group.name ? ' group-item--active' : ''}`}
-                  onClick={() => setSelected(group.name)}
+                  onClick={() => selectGroup(group.name)}
                 >
                   <span className="group-name">{group.name}</span>
                   <span className="group-count">

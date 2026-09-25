@@ -77,6 +77,19 @@ Admin tools: `npm run create-user -- --username maria --name "Maria K."` creates
 
 ---
 
+## Pages
+
+| Path | Access | What |
+|---|---|---|
+| `/` | public | Welcome page: what SPPI is and what the tool does |
+| `/login` | public | Sign in; `/login?mode=register` opens sign-up |
+| `/help` | public | How to use the recorder, plus FAQ |
+| `/app` | signed in | The recorder and Insights (signed-out visitors are sent to `/login`) |
+
+Client-side routing (React Router): in production Express serves `index.html` for these paths, so they work when opened directly or refreshed. Behind Apache/Nginx, proxy everything to the Node process (no `try_files` rules needed).
+
+---
+
 ## Accounts, data isolation & Insights
 
 - **Self-registration, gated by a shared invite code.** Set `REGISTRATION_CODE` in `.env` and share it with your coaches; sign-up also asks for it. Leave it unset only for local testing — the server logs a warning in production if it's missing, because that means anyone who finds the URL can create an account. Also rate-limited: 10 sign-ups per IP per hour, 10 failed logins per IP+username per 15 minutes. Behind a reverse proxy set `TRUST_PROXY=1` so limits see real client IPs, not the proxy's.

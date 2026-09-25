@@ -35,6 +35,11 @@ export function createApp({ db, config }) {
 
   if (fs.existsSync(DIST_DIR)) {
     app.use(express.static(DIST_DIR))
+    // Client-side routes (/login, /help, /app): serve the SPA shell. Missing files (anything with an extension) stay 404.
+    app.get('/{*splat}', (req, res, next) => {
+      if (path.extname(req.path)) return next()
+      res.sendFile(path.join(DIST_DIR, 'index.html'))
+    })
   }
 
   app.use((error, req, res, next) => {
