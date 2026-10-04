@@ -141,7 +141,7 @@ const en = {
   },
 
   app: {
-    tabs: { record: 'Record', insights: 'Insights' },
+    tabs: { record: 'Record', insights: 'Insights', history: 'History' },
     viewsLabel: 'Views',
     help: 'Help',
     signOut: 'Sign out',
@@ -149,16 +149,22 @@ const en = {
     noEvents: 'No events yet',
     eventsRecorded: ({ n }) => `${n} event${n === 1 ? '' : 's'} recorded`,
     savedNotice: 'Saved {id}',
+    updatedNotice: 'Updated {id}',
     sections: { metadata: 'Metadata', context: 'Context', execution: 'Execution', events: 'Events', outcome: 'Outcome' },
+    editingBanner: 'Editing {id} — changes replace what you saved before.',
+    cancelEdit: 'Cancel edit',
     modal: {
       title: 'Save Instance?',
+      titleEdit: 'Update this instance?',
       missingHeader: 'Missing required fields',
       message: 'Save this instance to your account and clear all fields?',
+      messageEdit: 'This replaces what you saved before for {id}.',
       download: 'Download JSON',
       cancel: 'Cancel',
       saving: 'Saving…',
       saveAnyway: 'Save anyway',
       saveClear: 'Save & Clear',
+      update: 'Update',
     },
     missing: {
       sppiId: 'SPPI ID',
@@ -306,6 +312,25 @@ const en = {
     goalBottom: 'Bottom',
     goalTop: 'Top',
     orientationHint: 'Only changes how this diagram looks on your screen — it has no effect on what gets saved. Match it to how the video is pointing.',
+  },
+
+  history: {
+    intro: 'Every corner you have saved, newest first. This is independent of the 10-per-team Insights threshold.',
+    empty: 'Nothing saved yet. Corners you record will show up here as soon as you save your first one.',
+    loadError: 'Could not load your history.',
+    loadMore: 'Load more',
+    edit: 'Edit',
+    created: 'Saved {date}',
+    editedOn: 'Edited {date}',
+    columns: {
+      sppiId: 'SPPI ID',
+      match: 'Match',
+      attacking: 'Attacking',
+      delivery: 'Delivery',
+      outcome: 'Outcome',
+      saved: 'Saved',
+    },
+    unnamedCoach: '—',
   },
 
   insights: {

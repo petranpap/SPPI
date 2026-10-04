@@ -271,3 +271,58 @@ test('client routes serve the app shell; missing files and unknown API paths sti
   assert.equal((await fetch(baseUrl + '/assets/does-not-exist.js')).status, 404)
   assert.equal((await fetch(baseUrl + '/api/does-not-exist')).status, 401)
 })
+
+test('a saved annotation can be edited: re-validated, isolated, and timestamped', async () => {
+  const alice = await login('alice')
+  const bob   = await login('bob')
+
+  const created = await request('POST', '/api/annotations', {
+    cookie: alice, body: makeSppi('EDIT_1', { team: 'Chelsea', targetZone: 'near_post' }),
+  })
+  assert.equal(created.status, 201)
+  const id = created.body.id
+
+  const before = (await request('GET', `/api/annotations/${id}`, { cookie: alice })).body.annotation
+  assert.equal(before.updated_at, null, 'untouched record has no updated_at yet')
+
+  // Bob can't edit Alice's annotation — not found, not forbidden, so existence itself isn't leaked.
+  const bobEdit = await request('PUT', `/api/annotations/${id}`, { cookie: bob, body: makeSppi('EDIT_1', { team: 'Chelsea' }) })
+  assert.equal(bobEdit.status, 404)
+  const untouchedByBob = (await request('GET', `/api/annotations/${id}`, { cookie: alice })).body.annotation
+  assert.equal(untouchedByBob.attacking_team, 'Chelsea', "Bob's rejected edit left the record alone")
+
+  // A bad edit from the owner is still rejected by the schema, just like a bad create.
+  const brokenEdit = makeSppi('EDIT_1', { team: 'Chelsea' })
+  brokenEdit.execution.delivery_type = 'not-a-real-type'
+  assert.equal((await request('PUT', `/api/annotations/${id}`, { cookie: alice, body: brokenEdit })).status, 400)
+
+  // A real edit from the owner updates the payload, the indexed columns, and the timestamp.
+  const validEdit = makeSppi('EDIT_1', { team: 'Arsenal', targetZone: 'far_post' })
+  const editResponse = await request('PUT', `/api/annotations/${id}`, { cookie: alice, body: validEdit })
+  assert.equal(editResponse.status, 204)
+
+  const after = (await request('GET', `/api/annotations/${id}`, { cookie: alice })).body.annotation
+  assert.equal(after.attacking_team, 'Arsenal')
+  assert.equal(after.payload.execution.target_zone, 'far_post')
+  assert.ok(after.updated_at, 'edited record now has an updated_at')
+  const aliceGroups = (await request('GET', '/api/groups?by=team', { cookie: alice })).body.groups
+  assert.ok(aliceGroups.some(g => g.name === 'Arsenal'), 'group index picked up the edit')
+  assert.ok(!aliceGroups.some(g => g.name === 'Chelsea'), 'the old team name is gone from the index')
+
+  // Editing an unknown id, or one belonging to no one, is a 404 — same as any other annotation lookup.
+  assert.equal((await request('PUT', '/api/annotations/999999', { cookie: alice, body: validEdit })).status, 404)
+})
+
+test('editing cannot collide with another of the same user\'s SPPI IDs', async () => {
+  const carol = 'carol_edit'
+  await createUserRepository(db).create({ username: carol, passwordHash: bcrypt.hashSync('correct-horse-battery', 4), displayName: 'Carol Edit' })
+  const cookie = await login(carol)
+
+  const first  = await request('POST', '/api/annotations', { cookie, body: makeSppi('DUP_EDIT_A') })
+  const second = await request('POST', '/api/annotations', { cookie, body: makeSppi('DUP_EDIT_B') })
+  assert.equal(first.status, 201)
+  assert.equal(second.status, 201)
+
+  const collide = await request('PUT', `/api/annotations/${second.body.id}`, { cookie, body: makeSppi('DUP_EDIT_A') })
+  assert.equal(collide.status, 409)
+})

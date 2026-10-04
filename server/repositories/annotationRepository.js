@@ -12,6 +12,7 @@ const GROUP_COLUMNS = {
 }
 
 export class DuplicateAnnotationError extends Error {}
+export class AnnotationNotFoundError extends Error {}
 
 function assertUserId(userId) {
   if (!Number.isInteger(userId)) throw new Error('userId is required for annotation queries')
@@ -29,6 +30,7 @@ function toRecord(row) {
     attacking_team: row.attacking_team,
     attacking_coach: row.attacking_coach,
     created_at: new Date(row.created_at).toISOString(),
+    updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
     payload: parsePayload(row.payload),
   }
 }
@@ -72,6 +74,32 @@ export function createAnnotationRepository(db) {
       assertUserId(userId)
       const row = await db('annotations').where({ user_id: userId, id }).first()
       return row ? toRecord(row) : null
+    },
+
+    // Re-validated, full-record replacement — the whole point of History's "edit" is to
+    // correct a mistake, so this takes a complete new SPPI instance, not a partial patch.
+    // Scoped by user_id in the same WHERE as every other query here: editing someone else's
+    // annotation is not just refused, the row doesn't exist from this user's point of view.
+    async updateForUser(userId, id, annotation) {
+      assertUserId(userId)
+      try {
+        const updated = await db('annotations')
+          .where({ user_id: userId, id })
+          .update({
+            sppi_id:             annotation.sppiId,
+            match_id:            annotation.matchId,
+            attacking_team:      annotation.attackingTeam,
+            attacking_team_key:  annotation.attackingTeamKey,
+            attacking_coach:     annotation.attackingCoach,
+            attacking_coach_key: annotation.attackingCoachKey,
+            payload:             JSON.stringify(annotation.payload),
+            updated_at:          new Date().toISOString(),
+          })
+        if (!updated) throw new AnnotationNotFoundError()
+      } catch (error) {
+        if (isUniqueViolation(error)) throw new DuplicateAnnotationError()
+        throw error
+      }
     },
 
     // One row per group. Spellings that differ only by case/spacing share a key;

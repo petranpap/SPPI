@@ -13,7 +13,11 @@ const BOX       = { x1: 120, y1: 140, x2: 400, y2: 340 }
 const GOAL_AREA = { x1: 212, y1: 340, x2: 308, y2: 370 }
 const GOAL_MOUTH= { x1: 222, y1: 370, x2: 298, y2: 382 }
 
-const ZONE_POS = {
+// Positions for a LEFT corner (near_post on the left, close to the corner; far_post on the
+// right). "Near post" and "far post" are defined relative to the corner being taken, not to
+// a fixed screen side — a right corner mirrors these two horizontally (see laterate() below),
+// per the schema: "Zone boundaries are corner-side-aware."
+const ZONE_POS_LEFT_CORNER = {
   near_post:    { x: 170, y: 295 },
   far_post:     { x: 350, y: 295 },
   penalty_spot: { x: 260, y: 258 },
@@ -29,12 +33,21 @@ const ZONE_COLOR = {
   outside_area: '#64748b',
 }
 
-const ZONE_RECT = {
+const ZONE_RECT_LEFT_CORNER = {
   near_post:    { x: BOX.x1,       y: 230, w: 100,                h: 110 },
   far_post:     { x: BOX.x2 - 100, y: 230, w: 100,                h: 110 },
   penalty_spot: { x: 205,          y: 250, w: 110,                h:  90 },
   center:       { x: BOX.x1 + 30,  y: 140, w: BOX.x2-BOX.x1-60,  h: 100 },
   outside_area: { x: BOX.x1,       y:  10, w: BOX.x2 - BOX.x1,   h: 130 },
+}
+
+// For a right corner, near_post and far_post swap sides. The two are already laid out as
+// horizontal mirror images of each other in *_LEFT_CORNER (same y/height, x spans symmetric
+// around the pitch's center), so swapping the two entries outright is the correct mirror —
+// every other zone is centered on the goal and untouched either way.
+function laterate(positions, cornerSide) {
+  if (cornerSide !== 'right') return positions
+  return { ...positions, near_post: positions.far_post, far_post: positions.near_post }
 }
 
 // Corner flag anchor points — ground level, before orientation flip (bottom of pitch)
@@ -140,12 +153,16 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
   const fy  = y => (flipped ? H - y : y)
   const dir = flipped ? -1 : 1
 
-  const zonePos = Object.fromEntries(Object.entries(ZONE_POS).map(([zone, p]) => [zone, { x: p.x, y: fy(p.y) }]))
+  const cornerSide = execution.corner_side ?? 'right'
+
+  const zonePosLateral  = laterate(ZONE_POS_LEFT_CORNER, cornerSide)
+  const zoneRectLateral = laterate(ZONE_RECT_LEFT_CORNER, cornerSide)
+  const zonePos = Object.fromEntries(Object.entries(zonePosLateral).map(([zone, p]) => [zone, { x: p.x, y: fy(p.y) }]))
   const corners = Object.fromEntries(Object.entries(CORNERS).map(([side, p]) => [side, { x: p.x, y: fy(p.y) }]))
   const box       = flipRect({ x: BOX.x1,       y: BOX.y1,       w: BOX.x2 - BOX.x1,             h: BOX.y2 - BOX.y1       }, fy, flipped)
   const goalArea  = flipRect({ x: GOAL_AREA.x1,  y: GOAL_AREA.y1,  w: GOAL_AREA.x2 - GOAL_AREA.x1,  h: GOAL_AREA.y2 - GOAL_AREA.y1 }, fy, flipped)
   const goalMouth = flipRect({ x: GOAL_MOUTH.x1, y: GOAL_MOUTH.y1, w: GOAL_MOUTH.x2 - GOAL_MOUTH.x1, h: GOAL_MOUTH.y2 - GOAL_MOUTH.y1 }, fy, flipped)
-  const zoneRects = Object.fromEntries(Object.entries(ZONE_RECT).map(([zone, r]) => [zone, flipRect(r, fy, flipped)]))
+  const zoneRects = Object.fromEntries(Object.entries(zoneRectLateral).map(([zone, r]) => [zone, flipRect(r, fy, flipped)]))
 
   const activeZones = new Set()
   events.forEach(ev => {
@@ -153,8 +170,6 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
     if (ev.zone_after)  activeZones.add(ev.zone_after)
   })
   if (execution.target_zone) activeZones.add(execution.target_zone)
-
-  const cornerSide   = execution.corner_side ?? 'right'
   const activeCorner = corners[cornerSide]
   const targetPos    = zonePos[execution.target_zone]
 

@@ -9,6 +9,7 @@ import EventsSection    from './components/EventsSection'
 import OutcomeSection   from './components/OutcomeSection'
 import PitchDiagram     from './components/PitchDiagram'
 import InsightsView     from './components/InsightsView'
+import HistoryView      from './components/HistoryView'
 
 // ── Initial state ──────────────────────────────────────────────────────────────
 const INIT_META = {
@@ -76,7 +77,7 @@ const SECTIONS = [
   { id: 'outcome' },
 ]
 
-const VIEWS = ['record', 'insights']
+const VIEWS = ['record', 'insights', 'history']
 
 // ── JSON builder ───────────────────────────────────────────────────────────────
 function buildSppi(meta, ctx, exec, events, outcome) {
@@ -163,6 +164,90 @@ function buildSppi(meta, ctx, exec, events, outcome) {
   }
 }
 
+// The inverse of buildSppi: turns a saved SPPI instance back into the five pieces of form
+// state, for History's "edit" action. Numbers that the form renders as text inputs (jersey
+// numbers, the minute) come back as strings; everything else is a direct reverse mapping.
+function sppiToFormState(sppi) {
+  const { metadata, context, execution, events, outcome } = sppi
+
+  const meta = {
+    sppi_id:         metadata.sppi_id,
+    match_id:        metadata.match_id,
+    competition:      metadata.competition,
+    season:          metadata.season,
+    home_team:       metadata.home_team,
+    away_team:       metadata.away_team,
+    attacking_team:  metadata.attacking_team,
+    defending_team:  metadata.defending_team,
+    attacking_coach: metadata.attacking_coach ?? '',
+  }
+
+  const ctx = {
+    minute:     String(context.minute),
+    period:     context.period,
+    score_home: context.score_home,
+    score_away: context.score_away,
+  }
+
+  const executors = execution.executors.map(e => ({ jersey_number: String(e.jersey_number), role: e.role }))
+  const hasSignal = execution.signal !== null
+  const signal = hasSignal
+    ? {
+        signaler: {
+          jersey_number: execution.signal.signaler.jersey_number != null ? String(execution.signal.signaler.jersey_number) : '',
+          location:      execution.signal.signaler.location,
+        },
+        gesture:      execution.signal.gesture,
+        gesture_side: execution.signal.gesture_side ?? null,
+        target:       execution.signal.target,
+        // Was the recorded signal already pointing somewhere other than the delivery target?
+        // If so, keep it unlocked on reopen rather than silently re-linking it to target_zone.
+        targetOverride: execution.signal.target !== execution.target_zone,
+      }
+    : INIT_EXEC.signal
+
+  const exec = {
+    executors: executors.length ? executors : INIT_EXEC.executors,
+    hasSignal,
+    signal,
+    foot:          execution.foot,
+    delivery_type: execution.delivery_type,
+    target_zone:   execution.target_zone,
+    corner_side:   context.corner_side,
+  }
+
+  const formEvents = events
+    .slice()
+    .sort((a, b) => a.sequence_index - b.sequence_index)
+    .map(ev => ({
+      jersey_number: ev.player.jersey_number != null ? String(ev.player.jersey_number) : '',
+      team:          ev.player.team,
+      zone_before:   ev.player.zone_before,
+      zone_after:    ev.player.zone_after,
+      action_type:   ev.player.action_type,
+      outcome:       ev.player.outcome,
+    }))
+
+  const formOutcome = {
+    termination_type: outcome.termination_type,
+    termination_zone: outcome.termination_zone,
+    final_action:     outcome.final_action,
+    final_player: {
+      jersey_number: outcome.final_player.jersey_number != null ? String(outcome.final_player.jersey_number) : '',
+      team:          outcome.final_player.team,
+    },
+    // Loading a saved record shows exactly what was saved — the auto-fill-from-last-event
+    // effect must not immediately overwrite it the moment events are set below.
+    autoFinal:        false,
+    hasSpawned:       outcome.spawned_instance != null,
+    spawned_instance: outcome.spawned_instance ?? '',
+    hasParent:        outcome.parent_instance != null,
+    parent_instance:  outcome.parent_instance ?? '',
+  }
+
+  return { meta, ctx, exec, events: formEvents, outcome: formOutcome }
+}
+
 // ── Validation ─────────────────────────────────────────────────────────────────
 // Returns the app.missing.* keys of the required fields that are still empty.
 function getEmptyFields(meta, ctx, exec, events) {
@@ -210,6 +295,8 @@ export default function App({ user, onLogout }) {
   const [saveError,   setSaveError]   = useState(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [suggestions, setSuggestions] = useState({ teams: [], coaches: [] })
+  // The id of the annotation being edited from History, or null when filling in a new corner.
+  const [editingId,   setEditingId]   = useState(null)
 
   const loadSuggestions = () =>
     Promise.all([api.groups('team'), api.groups('coach')])
@@ -250,7 +337,8 @@ export default function App({ user, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      await api.saveAnnotation(json)
+      if (editingId) await api.updateAnnotation(editingId, json)
+      else           await api.saveAnnotation(json)
     } catch (err) {
       // Keep the form intact so nothing the annotator entered is lost.
       if (err.status === 401) return onLogout()
@@ -259,8 +347,9 @@ export default function App({ user, onLogout }) {
       return
     }
     setSaving(false)
-    setSavedNotice(json.metadata.sppi_id)
+    setSavedNotice(t(editingId ? 'app.updatedNotice' : 'app.savedNotice', { id: json.metadata.sppi_id }))
     setTimeout(() => setSavedNotice(''), 4000)
+    const wasEditing = editingId !== null
     setMeta(continueSameMatch(meta))
     setCtx(INIT_CTX)
     setExec(INIT_EXEC)
@@ -270,10 +359,42 @@ export default function App({ user, onLogout }) {
     setValidated(false)
     setShowConfirm(false)
     setEmptyFields([])
+    setEditingId(null)
     loadSuggestions()
+    // An edit came from History — go back there so the change is visible immediately.
+    if (wasEditing) setView('history')
   }
 
   const handleExportJson = () => downloadJson(buildSppi(meta, ctx, exec, events, outcome))
+
+  // Loads a saved record from History back into the form for editing.
+  const handleEdit = record => {
+    const { meta: m, ctx: c, exec: e, events: ev, outcome: o } = sppiToFormState(record.payload)
+    setMeta(m)
+    setCtx(c)
+    setExec(e)
+    setEvents(ev)
+    setOutcome(o)
+    setEditingId(record.id)
+    setView('record')
+    setActive('metadata')
+    setValidated(false)
+    setEmptyFields([])
+    setSaveError(null)
+  }
+
+  const handleCancelEdit = () => {
+    setMeta(continueSameMatch(meta))
+    setCtx(INIT_CTX)
+    setExec(INIT_EXEC)
+    setEvents([])
+    setOutcome(INIT_OUTCOME)
+    setActive('metadata')
+    setValidated(false)
+    setEmptyFields([])
+    setEditingId(null)
+    setView('history')
+  }
 
   const totalEvents = events.length
   const hasSppiId   = meta.sppi_id.trim() !== ''
@@ -333,7 +454,7 @@ export default function App({ user, onLogout }) {
         </nav>
 
         <div className="header-right">
-          {savedNotice && <span className="header-notice" role="status">{t('app.savedNotice', { id: savedNotice })}</span>}
+          {savedNotice && <span className="header-notice" role="status">{savedNotice}</span>}
           {view === 'record' && (
             <span className="header-status">
               {totalEvents > 0 ? t('app.eventsRecorded', { n: totalEvents }) : t('app.noEvents')}
@@ -360,10 +481,17 @@ export default function App({ user, onLogout }) {
 
       {/* ── Body ── */}
       {view === 'insights' && <InsightsView />}
+      {view === 'history'  && <HistoryView onEdit={handleEdit} />}
       {view === 'record' && <div className="app-body">
 
         {/* ── Form panel ── */}
         <div className="form-panel">
+          {editingId && (
+            <div className="editing-banner">
+              <p>{t('app.editingBanner', { id: meta.sppi_id })}</p>
+              <button type="button" className="link-btn" onClick={handleCancelEdit}>{t('app.cancelEdit')}</button>
+            </div>
+          )}
           <nav className="step-bar">
             {stepElements}
           </nav>
@@ -391,7 +519,7 @@ export default function App({ user, onLogout }) {
           onClick={e => e.target === e.currentTarget && setShowConfirm(false)}
         >
           <div className="modal">
-            <p className="modal-title">{t('app.modal.title')}</p>
+            <p className="modal-title">{t(editingId ? 'app.modal.titleEdit' : 'app.modal.title')}</p>
 
             {emptyFields.length > 0 && (
               <div className="modal-warnings">
@@ -415,7 +543,7 @@ export default function App({ user, onLogout }) {
               </div>
             )}
 
-            <p className="modal-message">{t('app.modal.message')}</p>
+            <p className="modal-message">{t(editingId ? 'app.modal.messageEdit' : 'app.modal.message', { id: meta.sppi_id })}</p>
 
             <div className="modal-actions">
               <button className="cancel-btn" onClick={handleExportJson} disabled={saving}>
@@ -430,7 +558,11 @@ export default function App({ user, onLogout }) {
                 onClick={handleConfirmSave}
                 disabled={saving}
               >
-                {saving ? t('app.modal.saving') : emptyFields.length > 0 ? t('app.modal.saveAnyway') : t('app.modal.saveClear')}
+                {saving
+                  ? t('app.modal.saving')
+                  : editingId
+                    ? t('app.modal.update')
+                    : emptyFields.length > 0 ? t('app.modal.saveAnyway') : t('app.modal.saveClear')}
               </button>
             </div>
           </div>

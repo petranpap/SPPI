@@ -27,11 +27,13 @@ async function request(method, path, body) {
 }
 
 export const api = {
-  login:          (username, password) => request('POST', '/api/auth/login', { username, password }),
-  register:        (username, password, displayName, inviteCode) => request('POST', '/api/auth/register', { username, password, displayName, inviteCode }),
-  logout:         ()                   => request('POST', '/api/auth/logout'),
-  me:             ()                   => request('GET',  '/api/auth/me'),
-  saveAnnotation: sppi                 => request('POST', '/api/annotations', sppi),
-  groups:         by                   => request('GET',  `/api/groups?by=${by}`),
-  insights:       (by, name)           => request('GET',  `/api/insights?by=${by}&name=${encodeURIComponent(name)}`),
+  login:            (username, password) => request('POST', '/api/auth/login', { username, password }),
+  register:         (username, password, displayName, inviteCode) => request('POST', '/api/auth/register', { username, password, displayName, inviteCode }),
+  logout:           ()                   => request('POST', '/api/auth/logout'),
+  me:               ()                   => request('GET',  '/api/auth/me'),
+  saveAnnotation:   sppi                 => request('POST', '/api/annotations', sppi),
+  updateAnnotation: (id, sppi)           => request('PUT',  `/api/annotations/${id}`, sppi),
+  annotations:      (limit, offset = 0)  => request('GET',  `/api/annotations?limit=${limit}&offset=${offset}`),
+  groups:           by                   => request('GET',  `/api/groups?by=${by}`),
+  insights:         (by, name)           => request('GET',  `/api/insights?by=${by}&name=${encodeURIComponent(name)}`),
 }

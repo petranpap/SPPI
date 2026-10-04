@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { DuplicateAnnotationError } from '../repositories/annotationRepository.js'
+import { AnnotationNotFoundError, DuplicateAnnotationError } from '../repositories/annotationRepository.js'
 import { cleanName, normalizeName } from '../nameKey.js'
 import { validateSppi } from '../validation.js'
 import { sendError } from '../httpError.js'
@@ -13,6 +13,23 @@ function parsePagination(query) {
   return { limit, offset }
 }
 
+// Shared by create and edit: derives the indexed columns (team/coach + their grouping
+// keys) from a validated SPPI instance's metadata block.
+function annotationFields(sppi) {
+  const { metadata } = sppi
+  const attackingTeam  = cleanName(metadata.attacking_team)
+  const attackingCoach = cleanName(metadata.attacking_coach) || null
+  return {
+    sppiId:             metadata.sppi_id.trim(),
+    matchId:            metadata.match_id,
+    attackingTeam,
+    attackingTeamKey:   normalizeName(attackingTeam),
+    attackingCoach,
+    attackingCoachKey:  attackingCoach && normalizeName(attackingCoach),
+    payload:            sppi,
+  }
+}
+
 export function createAnnotationsRouter({ annotationRepository }) {
   const router = Router()
 
@@ -21,18 +38,7 @@ export function createAnnotationsRouter({ annotationRepository }) {
       const { errors, sppi } = validateSppi(req.body)
       if (errors) return sendError(res, 400, 'invalid_sppi', 'Invalid SPPI instance', { details: errors })
 
-      const { metadata } = sppi
-      const attackingTeam  = cleanName(metadata.attacking_team)
-      const attackingCoach = cleanName(metadata.attacking_coach) || null
-      const id = await annotationRepository.insert(req.user.id, {
-        sppiId:             metadata.sppi_id.trim(),
-        matchId:            metadata.match_id,
-        attackingTeam,
-        attackingTeamKey:   normalizeName(attackingTeam),
-        attackingCoach,
-        attackingCoachKey:  attackingCoach && normalizeName(attackingCoach),
-        payload:            sppi,
-      })
+      const id = await annotationRepository.insert(req.user.id, annotationFields(sppi))
       res.status(201).json({ id })
     } catch (error) {
       if (error instanceof DuplicateAnnotationError) {
@@ -59,6 +65,25 @@ export function createAnnotationsRouter({ annotationRepository }) {
       if (!annotation) return sendError(res, 404, 'not_found', 'Not found')
       res.json({ annotation })
     } catch (error) {
+      next(error)
+    }
+  })
+
+  router.put('/:id', async (req, res, next) => {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id)) return sendError(res, 404, 'not_found', 'Not found')
+
+      const { errors, sppi } = validateSppi(req.body)
+      if (errors) return sendError(res, 400, 'invalid_sppi', 'Invalid SPPI instance', { details: errors })
+
+      await annotationRepository.updateForUser(req.user.id, id, annotationFields(sppi))
+      res.status(204).end()
+    } catch (error) {
+      if (error instanceof AnnotationNotFoundError) return sendError(res, 404, 'not_found', 'Not found')
+      if (error instanceof DuplicateAnnotationError) {
+        return sendError(res, 409, 'duplicate_sppi_id', 'You already saved an instance with this SPPI ID')
+      }
       next(error)
     }
   })
