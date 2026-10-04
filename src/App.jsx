@@ -23,6 +23,15 @@ const INIT_META = {
   attacking_coach: '',
 }
 
+// Fields that genuinely describe the match, not the corner — kept across saves so the
+// annotator isn't retyping them for every phase. Everything else in INIT_META (the SPPI ID,
+// which team is attacking, the coach) is specific to one corner and always starts blank.
+const MATCH_LEVEL_FIELDS = ['match_id', 'competition', 'season', 'home_team', 'away_team']
+
+function continueSameMatch(meta) {
+  return { ...INIT_META, ...Object.fromEntries(MATCH_LEVEL_FIELDS.map(field => [field, meta[field]])) }
+}
+
 const INIT_CTX = {
   minute:      '',
   period:      '1',
@@ -50,6 +59,9 @@ const INIT_OUTCOME = {
   termination_zone:  'outside_area',
   final_action:      'clearance',
   final_player:      { jersey_number: '', team: 'defending' },
+  // While true, Final Action/Final Player are kept in sync with the last recorded event,
+  // instead of asking the annotator to re-enter the same thing — see the App effect below.
+  autoFinal:         true,
   hasSpawned:        false,
   spawned_instance:  '',
   hasParent:         false,
@@ -209,6 +221,22 @@ export default function App({ user, onLogout }) {
 
   useEffect(() => { loadSuggestions() }, [])
 
+  // Keeps Outcome's Final Action/Final Player mirrored to the last event, so the annotator
+  // never has to type the same ball contact twice — only re-runs when events change or
+  // autoFinal itself flips (manual edit turns it off; "use last event again" turns it back on).
+  useEffect(() => {
+    if (!outcome.autoFinal) return
+    const last = events.at(-1)
+    setOutcome(o => ({
+      ...o,
+      final_action: last ? last.action_type : INIT_OUTCOME.final_action,
+      final_player: last
+        ? { jersey_number: last.jersey_number, team: last.team }
+        : INIT_OUTCOME.final_player,
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, outcome.autoFinal])
+
   const handleSaveAttempt = () => {
     setValidated(true)
     const errors = getEmptyFields(meta, ctx, exec, events)
@@ -233,7 +261,7 @@ export default function App({ user, onLogout }) {
     setSaving(false)
     setSavedNotice(json.metadata.sppi_id)
     setTimeout(() => setSavedNotice(''), 4000)
-    setMeta(INIT_META)
+    setMeta(continueSameMatch(meta))
     setCtx(INIT_CTX)
     setExec(INIT_EXEC)
     setEvents([])
@@ -341,11 +369,11 @@ export default function App({ user, onLogout }) {
           </nav>
 
           <div className="section-content">
-            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} suggestions={suggestions} />}
+            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} suggestions={suggestions} onNewMatch={() => setMeta(INIT_META)} />}
             {active === 'context'   && <ContextSection   data={ctx}     onChange={setCtx}     validated={validated} />}
             {active === 'execution' && <ExecutionSection data={exec}    onChange={setExec}    validated={validated} />}
             {active === 'events'    && <EventsSection    events={events} onChange={setEvents} />}
-            {active === 'outcome'   && <OutcomeSection   data={outcome} onChange={setOutcome} onSave={handleSaveAttempt} />}
+            {active === 'outcome'   && <OutcomeSection   data={outcome} onChange={setOutcome} onSave={handleSaveAttempt} hasEvents={events.length > 0} />}
           </div>
         </div>
 

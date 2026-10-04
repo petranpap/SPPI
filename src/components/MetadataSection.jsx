@@ -1,13 +1,24 @@
 import { useI18n } from '../i18n'
 
-export default function MetadataSection({ data, onChange, validated, suggestions = { teams: [], coaches: [] } }) {
+export default function MetadataSection({ data, onChange, validated, suggestions = { teams: [], coaches: [] }, onNewMatch }) {
   const { t } = useI18n()
   const set = (field, value) => onChange({ ...data, [field]: value })
   const err = (val) => validated && !String(val).trim() ? 'is-error' : ''
 
+  // A blank SPPI ID next to already-filled match details means this is a fresh corner
+  // carried over from the last save, not a form the annotator is filling from scratch.
+  const continuingMatch = !data.sppi_id.trim() && (data.home_team.trim() || data.away_team.trim())
+
   return (
     <div>
       <p className="section-title">{t('metadata.title')}</p>
+
+      {continuingMatch && (
+        <div className="continuing-match">
+          <p>{t('metadata.continuingMatch', { home: data.home_team || '—', away: data.away_team || '—' })}</p>
+          <button type="button" className="link-btn" onClick={onNewMatch}>{t('metadata.newMatch')}</button>
+        </div>
+      )}
 
       <div className="field-row">
         <div className="field-group">

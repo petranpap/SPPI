@@ -4,15 +4,20 @@ import { useI18n } from '../i18n'
 const TERMINATION_TYPES = ['goal', 'out_of_play', 'cleared']
 const ACTION_TYPES = ['header', 'shot', 'pass', 'clearance', 'block', 'touch']
 
-export default function OutcomeSection({ data, onChange, onSave }) {
+export default function OutcomeSection({ data, onChange, onSave, hasEvents }) {
   const { t } = useI18n()
   const set = (field, value) => onChange({ ...data, [field]: value })
+  // Editing Final Action/Final Player by hand detaches them from the auto-sync with the
+  // last event; "use last event again" (below) reattaches it.
+  const setFinalAction = action => onChange({ ...data, final_action: action, autoFinal: false })
   const setFinalPlayer = (field, value) =>
-    onChange({ ...data, final_player: { ...data.final_player, [field]: value } })
+    onChange({ ...data, final_player: { ...data.final_player, [field]: value }, autoFinal: false })
+  const resumeAuto = () => onChange({ ...data, autoFinal: true })
 
   return (
     <div>
       <p className="section-title">{t('outcome.title')}</p>
+      <p className="field-hint" style={{ marginBottom: '16px' }}>{t('outcome.intro')}</p>
 
       {/* Termination type */}
       <div className="field-group">
@@ -39,18 +44,26 @@ export default function OutcomeSection({ data, onChange, onSave }) {
 
       {/* Final action */}
       <div className="field-group">
-        <label className="field-label">{t('outcome.finalAction')}</label>
+        <label className="field-label">
+          {t('outcome.finalAction')}
+          {data.autoFinal && hasEvents && <span className="field-optional">· {t('outcome.finalActionAuto')}</span>}
+        </label>
         <div className="btn-group">
           {ACTION_TYPES.map(action => (
             <button
               key={action}
               className={`btn-option ${data.final_action === action ? 'selected' : ''}`}
-              onClick={() => set('final_action', action)}
+              onClick={() => setFinalAction(action)}
             >
               {t(`action.${action}`)}
             </button>
           ))}
         </div>
+        {!data.autoFinal && hasEvents && (
+          <button className="link-btn" style={{ marginTop: '6px', fontSize: '11px' }} onClick={resumeAuto}>
+            {t('outcome.finalActionReset')}
+          </button>
+        )}
       </div>
 
       <div className="divider" />
@@ -58,6 +71,7 @@ export default function OutcomeSection({ data, onChange, onSave }) {
       {/* Final player */}
       <label className="field-label" style={{ marginBottom: '10px', display: 'block' }}>
         {t('outcome.finalPlayer')}
+        {data.autoFinal && hasEvents && <span className="field-optional">· {t('outcome.finalActionAuto')}</span>}
       </label>
 
       <div className="field-row">

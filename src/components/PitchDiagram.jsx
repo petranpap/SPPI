@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useI18n } from '../i18n'
 
-// ── Layout: goal at BOTTOM, corner taker at BOTTOM corners ────────────────
+// ── Layout: goal at BOTTOM, corner taker at BOTTOM corners (before orientation flip) ──
 // SVG canvas 520 × 370
 // Corner flags at bottom-left / bottom-right (goal line + touchline junction)
 
 const W = 520
 const H = 370
+const ORIENTATION_KEY = 'sppi_pitch_goal_top'
 
 const BOX       = { x1: 120, y1: 140, x2: 400, y2: 340 }
 const GOAL_AREA = { x1: 212, y1: 340, x2: 308, y2: 370 }
@@ -36,10 +37,24 @@ const ZONE_RECT = {
   outside_area: { x: BOX.x1,       y:  10, w: BOX.x2 - BOX.x1,   h: 130 },
 }
 
-// Corner flag anchor points — bottom of pitch (goal line + touchline junction)
+// Corner flag anchor points — ground level, before orientation flip (bottom of pitch)
 const CORNERS = {
   left:  { x: 10,      y: H - 10 },
   right: { x: W - 10,  y: H - 10 },
+}
+
+function loadOrientation() {
+  try { return localStorage.getItem(ORIENTATION_KEY) === '1' } catch { return false }
+}
+
+// A rect given as {x,y,w,h} with y=top. Mirroring the pitch vertically (goal moves from
+// bottom to top) needs every rect's top/bottom to swap, not just its y read through fy() —
+// width/x and the rect's own height are unaffected, only where its top edge lands.
+function flipRect(r, fy, flipped) {
+  if (!flipped) return r
+  const edgeA = fy(r.y)
+  const edgeB = fy(r.y + r.h)
+  return { ...r, y: Math.min(edgeA, edgeB), h: Math.abs(edgeA - edgeB) }
 }
 
 // ── Curved arrow ──────────────────────────────────────────────────────────
@@ -110,6 +125,27 @@ function CurvedArrow({ from, to, color, label }) {
 export default function PitchDiagram({ events, execution, onExecChange }) {
   const { t } = useI18n()
   const [hoveredZone, setHoveredZone] = useState(null)
+  // Purely a view preference — remembered per browser, never sent to the server or stored
+  // in the SPPI record. Lets the diagram match whichever way the source video is pointing.
+  const [flipped, setFlipped] = useState(loadOrientation)
+
+  const setOrientation = next => {
+    setFlipped(next)
+    try { localStorage.setItem(ORIENTATION_KEY, next ? '1' : '0') } catch { /* preference just won't persist */ }
+  }
+
+  // The one coordinate transform everything below is built from: mirror top<->bottom,
+  // left/right untouched. Decorative "always points up on screen" elements (the flagpole)
+  // use `dir` instead, since a pole shouldn't literally mirror — see the corner-flag block.
+  const fy  = y => (flipped ? H - y : y)
+  const dir = flipped ? -1 : 1
+
+  const zonePos = Object.fromEntries(Object.entries(ZONE_POS).map(([zone, p]) => [zone, { x: p.x, y: fy(p.y) }]))
+  const corners = Object.fromEntries(Object.entries(CORNERS).map(([side, p]) => [side, { x: p.x, y: fy(p.y) }]))
+  const box       = flipRect({ x: BOX.x1,       y: BOX.y1,       w: BOX.x2 - BOX.x1,             h: BOX.y2 - BOX.y1       }, fy, flipped)
+  const goalArea  = flipRect({ x: GOAL_AREA.x1,  y: GOAL_AREA.y1,  w: GOAL_AREA.x2 - GOAL_AREA.x1,  h: GOAL_AREA.y2 - GOAL_AREA.y1 }, fy, flipped)
+  const goalMouth = flipRect({ x: GOAL_MOUTH.x1, y: GOAL_MOUTH.y1, w: GOAL_MOUTH.x2 - GOAL_MOUTH.x1, h: GOAL_MOUTH.y2 - GOAL_MOUTH.y1 }, fy, flipped)
+  const zoneRects = Object.fromEntries(Object.entries(ZONE_RECT).map(([zone, r]) => [zone, flipRect(r, fy, flipped)]))
 
   const activeZones = new Set()
   events.forEach(ev => {
@@ -119,36 +155,58 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
   if (execution.target_zone) activeZones.add(execution.target_zone)
 
   const cornerSide   = execution.corner_side ?? 'right'
-  const activeCorner = CORNERS[cornerSide]
-  const targetPos    = ZONE_POS[execution.target_zone]
+  const activeCorner = corners[cornerSide]
+  const targetPos    = zonePos[execution.target_zone]
 
   const handleZoneClick   = (zone) => onExecChange({ ...execution, target_zone: zone })
   const handleCornerClick = (side) => onExecChange({ ...execution, corner_side: side })
 
-  // Delivery arc from active corner (bottom) to target zone (upward into box)
+  // Delivery arc from the active corner into the target zone. Pure vector math on already
+  // flip-aware points (activeCorner/targetPos), so it needs no separate orientation case —
+  // only the left/right inward-curve sign below is about corner_side, not up/down.
   const deliveryPath = (() => {
     if (!targetPos) return null
-    const fx = activeCorner.x
-    const fy = activeCorner.y - 10         // start just above the corner flag
-    const dx = targetPos.x - fx
-    const dy = targetPos.y - fy
+    const startX = activeCorner.x
+    const startY = activeCorner.y - 10 * dir   // just off the corner flag, into the pitch
+    const dx = targetPos.x - startX
+    const dy = targetPos.y - startY
     const len = Math.sqrt(dx * dx + dy * dy)
-    const ex = targetPos.x - (dx / len) * 22
-    const ey = targetPos.y - (dy / len) * 22
-    // curve inward: left corner curves right, right corner curves left
+    const endX = targetPos.x - (dx / len) * 22
+    const endY = targetPos.y - (dy / len) * 22
     const sign = cornerSide === 'left' ? 1 : -1
-    const mx = (fx + targetPos.x) / 2 + sign * (dy / len) * 40
-    const my = (fy + targetPos.y) / 2 - sign * (dx / len) * 40
-    return `M${fx},${fy} Q${mx},${my} ${ex},${ey}`
+    const mx = (startX + targetPos.x) / 2 + sign * (dy / len) * 40
+    const my = (startY + targetPos.y) / 2 - sign * (dx / len) * 40
+    return `M${startX},${startY} Q${mx},${my} ${endX},${endY}`
   })()
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-      {/* Title */}
-      <p className="pitch-title">
-        {t('pitch.title')}
-      </p>
+      {/* Title + orientation control */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <p className="pitch-title" style={{ marginBottom: 0 }}>
+          {t('pitch.title')}
+        </p>
+        <div className="orientation-switch" title={t('pitch.orientationHint')}>
+          <span className="orientation-label">{t('pitch.orientationLabel')}</span>
+          <button
+            type="button"
+            className={`orientation-btn ${!flipped ? 'orientation-btn--active' : ''}`}
+            aria-pressed={!flipped}
+            onClick={() => setOrientation(false)}
+          >
+            {t('pitch.goalBottom')}
+          </button>
+          <button
+            type="button"
+            className={`orientation-btn ${flipped ? 'orientation-btn--active' : ''}`}
+            aria-pressed={flipped}
+            onClick={() => setOrientation(true)}
+          >
+            {t('pitch.goalTop')}
+          </button>
+        </div>
+      </div>
 
       {/* SVG wrapper — fills available space */}
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -174,7 +232,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
           <rect width={W} height={H} fill="url(#stripes)" rx="6" />
 
           {/* ── Zone shading (hover + active) ── */}
-          {Object.entries(ZONE_RECT).map(([zone, r]) => (
+          {Object.entries(zoneRects).map(([zone, r]) => (
             <rect
               key={`shade-${zone}`}
               x={r.x} y={r.y} width={r.w} height={r.h}
@@ -186,26 +244,26 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
 
           {/* ── Penalty area ── */}
           <rect
-            x={BOX.x1} y={BOX.y1}
-            width={BOX.x2 - BOX.x1} height={BOX.y2 - BOX.y1}
+            x={box.x} y={box.y}
+            width={box.w} height={box.h}
             fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5"
           />
 
           {/* ── Goal area ── */}
           <rect
-            x={GOAL_AREA.x1} y={GOAL_AREA.y1}
-            width={GOAL_AREA.x2 - GOAL_AREA.x1} height={GOAL_AREA.y2 - GOAL_AREA.y1}
+            x={goalArea.x} y={goalArea.y}
+            width={goalArea.w} height={goalArea.h}
             fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2"
           />
 
-          {/* ── Goal mouth (extends below canvas edge, naturally clipped) ── */}
+          {/* ── Goal mouth (extends past the canvas edge, naturally clipped) ── */}
           <rect
-            x={GOAL_MOUTH.x1} y={GOAL_MOUTH.y1}
-            width={GOAL_MOUTH.x2 - GOAL_MOUTH.x1} height={GOAL_MOUTH.y2 - GOAL_MOUTH.y1}
+            x={goalMouth.x} y={goalMouth.y}
+            width={goalMouth.w} height={goalMouth.h}
             fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"
           />
           <text
-            x={W / 2} y={H - 4}
+            x={W / 2} y={flipped ? 14 : H - 4}
             textAnchor="middle" fontSize="8"
             fill="rgba(255,255,255,0.35)" fontWeight="700" letterSpacing="2"
           >
@@ -214,19 +272,19 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
 
           {/* ── Penalty spot ── */}
           <circle
-            cx={ZONE_POS.penalty_spot.x} cy={ZONE_POS.penalty_spot.y}
+            cx={zonePos.penalty_spot.x} cy={zonePos.penalty_spot.y}
             r={3.5} fill="rgba(255,255,255,0.5)"
           />
 
-          {/* ── Penalty arc (bows upward — away from goal at bottom) ── */}
+          {/* ── Penalty arc (always bows away from goal; the sweep flag flips with orientation) ── */}
           <path
-            d={`M 205 ${ZONE_POS.penalty_spot.y} A 65 65 0 0 0 315 ${ZONE_POS.penalty_spot.y}`}
+            d={`M 205 ${zonePos.penalty_spot.y} A 65 65 0 0 ${flipped ? 1 : 0} 315 ${zonePos.penalty_spot.y}`}
             fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"
           />
 
           {/* ── Top-of-box dashed line (edge furthest from goal) ── */}
           <line
-            x1={BOX.x1} y1={BOX.y1} x2={BOX.x2} y2={BOX.y1}
+            x1={box.x} y1={box.y} x2={box.x + box.w} y2={box.y}
             stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="5,4"
           />
 
@@ -252,9 +310,9 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
           {/* ── Event movement arrows (chained: arrow i starts where arrow i-1 ended) ── */}
           {events.map((ev, i) => {
             const from = i === 0
-              ? ZONE_POS[ev.zone_before]
-              : ZONE_POS[events[i - 1].zone_after]
-            const to    = ZONE_POS[ev.zone_after]
+              ? zonePos[ev.zone_before]
+              : zonePos[events[i - 1].zone_after]
+            const to    = zonePos[ev.zone_after]
             const color = ev.team === 'attacking' ? '#60a5fa' : '#f87171'
             return (
               <CurvedArrow key={i} from={from} to={to} color={color} label={i + 1} />
@@ -262,7 +320,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
           })}
 
           {/* ── Zone dots (visual) ── */}
-          {Object.entries(ZONE_POS).map(([zone, pos]) => {
+          {Object.entries(zonePos).map(([zone, pos]) => {
             const active   = activeZones.has(zone)
             const isTarget = execution.target_zone === zone
             return (
@@ -287,7 +345,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
           })}
 
           {/* ── Zone name labels ── */}
-          {Object.entries(ZONE_POS).map(([zone, pos]) => (
+          {Object.entries(zonePos).map(([zone, pos]) => (
             <text
               key={`lbl-${zone}`}
               x={pos.x} y={pos.y + 30}
@@ -300,7 +358,7 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
           ))}
 
           {/* ── Clickable zone overlays (transparent, large touch targets) ── */}
-          {Object.entries(ZONE_RECT).map(([zone, r]) => (
+          {Object.entries(zoneRects).map(([zone, r]) => (
             <rect
               key={`tap-${zone}`}
               x={r.x} y={r.y} width={r.w} height={r.h}
@@ -312,16 +370,19 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
             />
           ))}
 
-          {/* ── Corner flags (left & right, BOTTOM of pitch — goal line + touchline) ── */}
+          {/* ── Corner flags (left & right, at ground level — bottom of pitch, or top when flipped) ── */}
           {(['left', 'right']).map(side => {
-            const c   = CORNERS[side]
+            const c   = corners[side]
             const sel = cornerSide === side
             const flagColor = sel ? '#f5c518' : 'rgba(255,255,255,0.3)'
             const poleColor = sel ? '#a8720a' : 'rgba(255,255,255,0.2)'
-            // flag triangle at top of pole, points inward toward center of pitch
+            // The pole always points "up" on screen in the unflipped view; dir mirrors that
+            // when the anchor itself has moved to the top edge, so it still points into the pitch.
+            const poleTipY = c.y - 26 * dir
+            // flag triangle at the tip of the pole, points inward toward the center of the pitch
             const pts = side === 'left'
-              ? `${c.x},${c.y-26} ${c.x+18},${c.y-17} ${c.x},${c.y-8}`
-              : `${c.x},${c.y-26} ${c.x-18},${c.y-17} ${c.x},${c.y-8}`
+              ? `${c.x},${poleTipY} ${c.x+18},${c.y-17*dir} ${c.x},${c.y-8*dir}`
+              : `${c.x},${poleTipY} ${c.x-18},${c.y-17*dir} ${c.x},${c.y-8*dir}`
 
             return (
               <g
@@ -330,26 +391,26 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
                 onClick={() => handleCornerClick(side)}
               >
                 {/* Invisible large click target */}
-                <circle cx={c.x} cy={c.y-14} r={26} fill="transparent" />
+                <circle cx={c.x} cy={c.y - 14 * dir} r={26} fill="transparent" />
 
                 {/* Selection glow ring */}
                 {sel && (
                   <circle
-                    cx={c.x} cy={c.y-14} r={20}
+                    cx={c.x} cy={c.y - 14 * dir} r={20}
                     fill="rgba(245,197,24,0.1)"
                     stroke="#f5c518" strokeWidth="1"
                     strokeDasharray="3,2"
                   />
                 )}
 
-                {/* Pole (goes UP from ground level) */}
+                {/* Pole (goes from ground level toward the inside of the pitch) */}
                 <line
                   x1={c.x} y1={c.y}
-                  x2={c.x} y2={c.y-26}
+                  x2={c.x} y2={poleTipY}
                   stroke={poleColor} strokeWidth={2} strokeLinecap="round"
                 />
 
-                {/* Flag triangle (at top of pole) */}
+                {/* Flag triangle (at the tip of the pole) */}
                 <polygon points={pts} fill={flagColor} opacity={sel ? 1 : 0.45} />
 
                 {/* Corner circle (base, at ground level) */}
@@ -361,10 +422,10 @@ export default function PitchDiagram({ events, execution, onExecChange }) {
                   opacity={sel ? 1 : 0.5}
                 />
 
-                {/* Side label (above the flag) */}
+                {/* Side label (beyond the flag tip, away from the pitch) */}
                 <text
                   x={c.x}
-                  y={c.y - 44}
+                  y={c.y - 44 * dir}
                   textAnchor="middle"
                   fontSize="9"
                   fontWeight={sel ? '800' : '500'}
