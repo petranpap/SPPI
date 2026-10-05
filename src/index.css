@@ -820,6 +820,47 @@ input[type=number].field-input {
   white-space: nowrap;
 }
 
+/* ── Recent matches (tap to reuse) ─────────── */
+.recent-matches { margin-bottom: 18px; }
+
+.recent-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-match-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.recent-match-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+.recent-match-teams {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.recent-match-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* ── Score stepper ─────────────────────────── */
 .score-stepper {
   display: flex;
@@ -875,7 +916,8 @@ input[type=number].field-input {
 }
 
 /* ── Validation error ──────────────────────── */
-.field-input.is-error {
+.field-input.is-error,
+.btn-option.is-error {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
@@ -1924,4 +1966,33 @@ input[type=number] { -moz-appearance: textfield; }
 
 @media (max-width: 800px) {
   .history-table-wrap { overflow-x: auto; }
+}
+
+/* ── Jersey number quick-chips (recently used in this corner) ── */
+.jersey-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.jersey-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.jersey-chip:hover { border-color: var(--accent); color: var(--text); }
+
+.jersey-chip.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
 }

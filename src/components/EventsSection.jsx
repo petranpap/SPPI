@@ -25,13 +25,19 @@ function actionIcon(id) {
   return ACTION_TYPES.find(a => a.id === id)?.icon ?? ''
 }
 
-export default function EventsSection({ events, onChange }) {
+export default function EventsSection({ events, onChange, executorJerseys = [] }) {
   const { t } = useI18n()
   const [showForm, setShowForm] = useState(events.length === 0)
   const [form, setForm] = useState(BLANK_EVENT)
   const [editIdx, setEditIdx] = useState(null)
 
   const setField = (field, value) => setForm(f => ({ ...f, [field]: value }))
+
+  // Numbers already seen in this corner — most recently used first — so a player who keeps
+  // coming up (the keeper clearing twice, a recurring duel) is a tap instead of a retype.
+  // The executor(s) are included too: on the very first event, there's nothing from `events`
+  // yet, and the executor is often the next player to touch the ball again.
+  const recentJerseys = [...new Set([...events.map(e => e.jersey_number).reverse(), ...executorJerseys].filter(Boolean))].slice(0, 8)
 
   const openAdd = () => {
     setForm(BLANK_EVENT)
@@ -163,6 +169,20 @@ export default function EventsSection({ events, onChange }) {
                 value={form.jersey_number}
                 onChange={e => setField('jersey_number', e.target.value)}
               />
+              {recentJerseys.length > 0 && (
+                <div className="jersey-chips">
+                  {recentJerseys.map(jersey => (
+                    <button
+                      key={jersey}
+                      type="button"
+                      className={`jersey-chip ${form.jersey_number === jersey ? 'selected' : ''}`}
+                      onClick={() => setField('jersey_number', jersey)}
+                    >
+                      #{jersey}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="field-group">
               <label className="field-label">{t('events.team')}</label>

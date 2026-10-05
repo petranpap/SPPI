@@ -26,11 +26,43 @@ const INIT_META = {
 
 // Fields that genuinely describe the match, not the corner — kept across saves so the
 // annotator isn't retyping them for every phase. Everything else in INIT_META (the SPPI ID,
-// which team is attacking, the coach) is specific to one corner and always starts blank.
+// which team is attacking, the coach) is specific to one corner.
 const MATCH_LEVEL_FIELDS = ['match_id', 'competition', 'season', 'home_team', 'away_team']
 
-function continueSameMatch(meta) {
-  return { ...INIT_META, ...Object.fromEntries(MATCH_LEVEL_FIELDS.map(field => [field, meta[field]])) }
+// A ready-to-use next ID, so leaving it untyped is the easy path rather than a gap the
+// annotator has to fill. Still just a suggestion — the field stays editable.
+function nextSppiId(matchId, seq) {
+  return matchId.trim() ? `${matchId.trim()}_${String(seq).padStart(2, '0')}` : ''
+}
+
+// Reduces the annotator's own recent saves (newest first, as the API returns them) to
+// distinct matches, keeping the freshest field values and a per-match corner count — so
+// picking one up later can suggest the next SPPI ID without colliding with earlier ones.
+function deriveRecentMatches(annotations) {
+  const byMatch = new Map()
+  for (const a of annotations) {
+    const { metadata } = a.payload
+    const key = a.match_id || `${metadata.home_team}|${metadata.away_team}|${metadata.competition}`
+    const existing = byMatch.get(key)
+    if (existing) existing.count += 1
+    else byMatch.set(key, {
+      matchId:     a.match_id,
+      competition: metadata.competition,
+      season:      metadata.season,
+      homeTeam:    metadata.home_team,
+      awayTeam:    metadata.away_team,
+      count:       1,
+    })
+  }
+  return [...byMatch.values()].slice(0, 6)
+}
+
+function continueSameMatch(meta, nextSeq) {
+  return {
+    ...INIT_META,
+    ...Object.fromEntries(MATCH_LEVEL_FIELDS.map(field => [field, meta[field]])),
+    sppi_id: nextSppiId(meta.match_id, nextSeq),
+  }
 }
 
 const INIT_CTX = {
@@ -107,7 +139,7 @@ function buildSppi(meta, ctx, exec, events, outcome) {
   return {
     metadata: {
       sppi_id:        meta.sppi_id  || `SPPI_${Date.now()}`,
-      match_id:       meta.match_id,
+      match_id:       meta.match_id.trim() || `MATCH_${Date.now()}`,
       source:         'manual',
       timestamp:      Math.floor(Date.now() / 1000),
       competition:    meta.competition,
@@ -252,8 +284,8 @@ function sppiToFormState(sppi) {
 // Returns the app.missing.* keys of the required fields that are still empty.
 function getEmptyFields(meta, ctx, exec, events) {
   const missing = []
-  if (!meta.sppi_id.trim())                    missing.push('sppiId')
-  if (!meta.match_id.trim())                   missing.push('matchId')
+  // sppi_id and match_id are deliberately not required here — both are auto-generated
+  // (nextSppiId, and the MATCH_<timestamp> fallback in buildSppi) when left blank.
   if (!meta.competition.trim())                missing.push('competition')
   if (!meta.season.trim())                     missing.push('season')
   if (!meta.home_team.trim())                  missing.push('homeTeam')
@@ -295,15 +327,22 @@ export default function App({ user, onLogout }) {
   const [saveError,   setSaveError]   = useState(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [suggestions, setSuggestions] = useState({ teams: [], coaches: [] })
+  const [recentMatches, setRecentMatches] = useState([])
   // The id of the annotation being edited from History, or null when filling in a new corner.
   const [editingId,   setEditingId]   = useState(null)
+  // Suggests the next corner's SPPI ID (see nextSppiId) — advances only when a NEW corner
+  // is actually saved, and resets when the annotator starts a different match.
+  const [cornerSeq,   setCornerSeq]   = useState(1)
 
   const loadSuggestions = () =>
-    Promise.all([api.groups('team'), api.groups('coach')])
-      .then(([teams, coaches]) => setSuggestions({
-        teams:   teams.groups.map(g => g.name),
-        coaches: coaches.groups.map(g => g.name),
-      }))
+    Promise.all([api.groups('team'), api.groups('coach'), api.annotations(50)])
+      .then(([teams, coaches, { annotations }]) => {
+        setSuggestions({
+          teams:   teams.groups.map(g => g.name),
+          coaches: coaches.groups.map(g => g.name),
+        })
+        setRecentMatches(deriveRecentMatches(annotations))
+      })
       .catch(() => {})
 
   useEffect(() => { loadSuggestions() }, [])
@@ -350,7 +389,14 @@ export default function App({ user, onLogout }) {
     setSavedNotice(t(editingId ? 'app.updatedNotice' : 'app.savedNotice', { id: json.metadata.sppi_id }))
     setTimeout(() => setSavedNotice(''), 4000)
     const wasEditing = editingId !== null
-    setMeta(continueSameMatch(meta))
+    // A new corner was just saved: the NEXT suggested id moves on; editing one that already
+    // existed doesn't consume a new number.
+    const nextSeq = wasEditing ? cornerSeq : cornerSeq + 1
+    setCornerSeq(nextSeq)
+    // Use the match_id actually saved (json.metadata.match_id), not the raw form field —
+    // if it was left blank, buildSppi already resolved it to a MATCH_<timestamp> fallback,
+    // and that's the id the next corner's suggested SPPI ID should build on.
+    setMeta(continueSameMatch({ ...meta, match_id: json.metadata.match_id }, nextSeq))
     setCtx(INIT_CTX)
     setExec(INIT_EXEC)
     setEvents([])
@@ -384,7 +430,7 @@ export default function App({ user, onLogout }) {
   }
 
   const handleCancelEdit = () => {
-    setMeta(continueSameMatch(meta))
+    setMeta(continueSameMatch(meta, cornerSeq))
     setCtx(INIT_CTX)
     setExec(INIT_EXEC)
     setEvents([])
@@ -394,6 +440,23 @@ export default function App({ user, onLogout }) {
     setEmptyFields([])
     setEditingId(null)
     setView('history')
+  }
+
+  // Reuses a match the annotator has already recorded corners for (from History, via
+  // recentMatches), instead of retyping competition/season/home/away for a fixture that
+  // recurs across sessions — "continue same match" only covers the current browser tab.
+  const handlePickMatch = match => {
+    const seq = match.count + 1
+    setCornerSeq(seq)
+    setMeta({
+      ...INIT_META,
+      match_id:    match.matchId ?? '',
+      competition: match.competition,
+      season:      match.season,
+      home_team:   match.homeTeam,
+      away_team:   match.awayTeam,
+      sppi_id:     nextSppiId(match.matchId ?? '', seq),
+    })
   }
 
   const totalEvents = events.length
@@ -497,10 +560,10 @@ export default function App({ user, onLogout }) {
           </nav>
 
           <div className="section-content">
-            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} suggestions={suggestions} onNewMatch={() => setMeta(INIT_META)} />}
+            {active === 'metadata'  && <MetadataSection  data={meta}    onChange={setMeta}    validated={validated} suggestions={suggestions} recentMatches={recentMatches} onPickMatch={handlePickMatch} onNewMatch={() => { setMeta(INIT_META); setCornerSeq(1) }} />}
             {active === 'context'   && <ContextSection   data={ctx}     onChange={setCtx}     validated={validated} />}
             {active === 'execution' && <ExecutionSection data={exec}    onChange={setExec}    validated={validated} />}
-            {active === 'events'    && <EventsSection    events={events} onChange={setEvents} />}
+            {active === 'events'    && <EventsSection    events={events} onChange={setEvents} executorJerseys={exec.executors.map(e => e.jersey_number).filter(Boolean)} />}
             {active === 'outcome'   && <OutcomeSection   data={outcome} onChange={setOutcome} onSave={handleSaveAttempt} hasEvents={events.length > 0} />}
           </div>
         </div>
